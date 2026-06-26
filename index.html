@@ -27,6 +27,17 @@
         <button class="filter-btn" data-filter="done" onclick="setFilter(this,'done')">Done</button>
         <button class="filter-btn" data-filter="all" onclick="setFilter(this,'all')">All</button>
       </div>
+      <!-- Sort bar (active only) -->
+      <div id="list-sort">
+        <span class="sort-label">Sort:</span>
+        <button class="sort-btn active" data-sort="manual" onclick="setSort(this,'manual')">Manual</button>
+        <button class="sort-btn" data-sort="priority" onclick="setSort(this,'priority')">Priority</button>
+        <button class="sort-btn" data-sort="time" onclick="setSort(this,'time')">Time</button>
+      </div>
+      <!-- Clear done button -->
+      <div id="clear-done-wrap">
+        <button id="clear-done-btn" onclick="clearAllDone()" style="display:none">Clear completed</button>
+      </div>
       <div id="list-items"></div>
     </div>
   </div>
@@ -58,10 +69,11 @@
       <!-- Subtasks -->
       <div id="subtask-list"></div>
 
-      <!-- Queue hint -->
+      <!-- Queue hint with nav arrows -->
       <div id="queue-hint">
-        <span id="queue-dots">· · ·</span>
+        <button id="nav-prev" class="nav-btn" onclick="navTask(-1)" title="Previous task">↑</button>
         <span id="queue-label"></span>
+        <button id="nav-next" class="nav-btn" onclick="navTask(1)" title="Next task">↓</button>
       </div>
 
       <div id="empty-done-msg">🎉 <strong>Queue empty.</strong> You crushed everything.</div>
@@ -87,10 +99,14 @@
         <button class="tag-btn" data-tag="Easy" onclick="toggleTag(this)">Easy</button>
         <button class="tag-btn" data-tag="Fun" onclick="toggleTag(this)">Fun</button>
       </div>
+      <!-- Split add button: two options -->
       <div id="add-submit-wrap">
-        <button id="add-submit" onclick="submitTask()">
-          Add Task
-          <span id="add-submit-arrow">↵</span>
+        <button class="add-btn-primary" onclick="submitTask('bottom')">
+          Add to queue
+          <span class="add-btn-arrow">↵</span>
+        </button>
+        <button class="add-btn-secondary" onclick="submitTask('top')">
+          Do next ↑
         </button>
       </div>
     </div>

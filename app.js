@@ -3,11 +3,13 @@
 // ─────────────────────────────────────────────
 
 // ── STATE ──
-let tasks        = [];
-let currentIndex = 0;
-let selectedTags = [];
+let tasks         = [];
+let currentIndex  = 0;
+let selectedTags  = [];
 let currentFilter = 'active';
-let openListDd   = null; // track open list-row dropdown id
+let currentSort   = 'manual'; // 'manual' | 'priority' | 'time'
+let openListDd    = null;
+let dragSrcIdx    = null; // drag source index in full tasks array
 
 const PROMPTS = [
   "What's your first task to crush today?",
@@ -33,6 +35,9 @@ const TAG_COLORS = {
   'Fun':    '#9333ea',
 };
 
+const PRIO_ORDER = { 'Urgent': 0, 'Easy': 1, 'Fun': 2 };
+const TIME_ORDER = { '5 min': 0, '15 min': 1, '30 min': 2 };
+
 const COLORS = ['#5c47f5','#0ea5e9','#f59e0b','#e53935','#16a34a','#9333ea','#ec4899','#06b6d4'];
 
 // ── STORAGE ──
@@ -44,7 +49,6 @@ function load() {
   try {
     tasks = JSON.parse(localStorage.getItem('tc_tasks') || '[]');
     currentIndex = parseInt(localStorage.getItem('tc_index') || '0', 10);
-    // migrate old emoji tags
     tasks.forEach(t => {
       if (!t.tags) t.tags = [];
       t.tags = t.tags.map(tag => tag
@@ -52,7 +56,7 @@ function load() {
         .replace('🔥 ','').replace('✌️ ','').replace('🎉 ','')
         .replace('1 hr','30 min')
       );
-      t.tomorrow = false; // remove tomorrow flag
+      t.tomorrow = false;
     });
   } catch(e) { tasks = []; currentIndex = 0; }
   if (currentIndex >= activeTasks().length) currentIndex = 0;
@@ -101,17 +105,20 @@ function render() {
 
     // badge
     if (task.tags && task.tags.length > 0) {
-      badge.textContent  = task.tags.join('  ·  ');
-      badge.style.color  = TAG_COLORS[task.tags[0]] || 'var(--accent)';
+      badge.textContent = task.tags.join('  ·  ');
+      badge.style.color = TAG_COLORS[task.tags[0]] || 'var(--accent)';
     } else {
       badge.textContent = '';
     }
 
-    // queue hint
+    // queue hint with nav arrows
     const rem = active.length - 1;
     if (rem > 0) {
       queueHint.style.display = 'flex';
-      document.getElementById('queue-label').textContent = rem + ' more task' + (rem !== 1 ? 's' : '') + ' in queue';
+      document.getElementById('queue-label').textContent =
+        (currentIndex + 1) + ' of ' + active.length;
+      document.getElementById('nav-prev').disabled = currentIndex === 0;
+      document.getElementById('nav-next').disabled = currentIndex >= active.length - 1;
     } else {
       queueHint.style.display = 'none';
     }
@@ -135,6 +142,13 @@ function render() {
       document.getElementById('empty-prompt').textContent = rand(PROMPTS);
     }
   }
+}
+
+// ── TASK NAVIGATION (prev/next) ──
+function navTask(dir) {
+  const active = activeTasks();
+  currentIndex = Math.max(0, Math.min(active.length - 1, currentIndex + dir));
+  save(); render();
 }
 
 // ── QUICK ACTIONS (3 dropdowns) ──
@@ -173,13 +187,10 @@ function renderQuickActions(task) {
       </div>
     </div>
 
-    <!-- PUSH + DELETE dropdown -->
-    <div class="qa-dropdown" id="dd-push">
-      <button class="qa-pill skip" onclick="toggleDropdown('dd-push')">Push ▾</button>
-      <div class="qa-dropdown-menu" id="dd-push-menu">
-        <button class="qa-menu-item" onclick="pushTask('next')">Move down one</button>
-        <button class="qa-menu-item" onclick="pushTask('end')">Send to end</button>
-        <div class="qa-menu-sep"></div>
+    <!-- MORE dropdown (split + delete) -->
+    <div class="qa-dropdown" id="dd-more">
+      <button class="qa-pill skip" onclick="toggleDropdown('dd-more')">More ▾</button>
+      <div class="qa-dropdown-menu" id="dd-more-menu">
         <button class="qa-menu-item" onclick="openSplitModal()">Split task</button>
         <div class="qa-menu-sep"></div>
         <button class="qa-menu-item danger" onclick="deleteCurrentTask()">Delete</button>
@@ -188,9 +199,9 @@ function renderQuickActions(task) {
   `;
 }
 
-// dropdown toggle — close others first
+// dropdown toggle
 function toggleDropdown(id) {
-  const menus = ['dd-time-menu','dd-prio-menu','dd-push-menu'];
+  const menus = ['dd-time-menu','dd-prio-menu','dd-more-menu'];
   const menuId = id + '-menu';
   const isOpen = document.getElementById(menuId)?.classList.contains('open');
   menus.forEach(m => document.getElementById(m)?.classList.remove('open'));
@@ -204,7 +215,7 @@ function closeDropdownsOutside(e) {
   if (!e.target.closest('.qa-dropdown') && !e.target.closest('.list-dd')) closeAllDropdowns();
 }
 function closeAllDropdowns() {
-  ['dd-time-menu','dd-prio-menu','dd-push-menu'].forEach(m => {
+  ['dd-time-menu','dd-prio-menu','dd-more-menu'].forEach(m => {
     document.getElementById(m)?.classList.remove('open');
   });
   closeAllListDropdowns();
@@ -277,8 +288,12 @@ function handleCardClick() { crushTask(); }
 
 function crushTask() {
   const task = currentTask(); if (!task) return;
+  // Release touch hover on mobile by blurring
+  document.activeElement && document.activeElement.blur();
+  document.getElementById('task-card').classList.remove('touch-active');
+
   task.done = true;
-  if (currentIndex >= activeTasks().length) currentIndex = 0;
+  if (currentIndex >= activeTasks().length) currentIndex = Math.max(0, activeTasks().length - 1);
   save();
   playConfetti();
   showCrushFlash();
@@ -296,53 +311,13 @@ function crushSubtask(idx) {
   }
 }
 
-// ── PUSH ──
-// "next" = swap current task with the one right after it in active list (move down one)
-// "end"  = move to end of active tasks
-function pushTask(where) {
-  const task = currentTask(); if (!task) return;
-  closeAllDropdowns();
-
-  const active = activeTasks();
-  const activeIdx = active.indexOf(task);       // position in active array
-  const globalIdx = tasks.indexOf(task);         // position in full tasks array
-
-  if (where === 'end') {
-    // Remove from current position, place after the last non-done task
-    tasks.splice(globalIdx, 1);
-    // Find last non-done task position
-    let lastActive = -1;
-    tasks.forEach((t, i) => { if (!t.done) lastActive = i; });
-    tasks.splice(lastActive + 1, 0, task);
-  } else {
-    // "next" = move down one spot in the active queue
-    // Find the next active task right after this one
-    const nextActive = active[activeIdx + 1];
-    if (!nextActive) {
-      // Already last — nothing to do
-      save(); render(); return;
-    }
-    const nextGlobalIdx = tasks.indexOf(nextActive);
-    // Swap them in the tasks array
-    tasks.splice(globalIdx, 1);
-    // After removal, nextActive shifted up one if it was after globalIdx
-    const newNextIdx = tasks.indexOf(nextActive);
-    tasks.splice(newNextIdx + 1, 0, task);
-  }
-
-  // currentIndex stays 0 (the next task in queue becomes current)
-  currentIndex = 0;
-  if (currentIndex >= activeTasks().length) currentIndex = 0;
-  save(); render();
-}
-
 // ── DELETE ──
 function deleteCurrentTask() {
   const task = currentTask(); if (!task) return;
   closeAllDropdowns();
   if (!confirm('Delete this task?')) return;
   tasks = tasks.filter(t => t !== task);
-  if (currentIndex >= activeTasks().length) currentIndex = 0;
+  if (currentIndex >= activeTasks().length) currentIndex = Math.max(0, activeTasks().length - 1);
   save(); render();
 }
 
@@ -386,7 +361,10 @@ function confirmSplit() {
   if (steps.length === 0) return;
 
   const task = currentTask(); if (!task) return;
-  const color = task.color || randColor();
+  // Ensure split tasks get a unique color different from standalone tasks
+  // If task has no parentId (standalone), assign it a color for the group
+  if (!task.parentId) task.color = task.color || randColor();
+  const color = task.color;
 
   const newTasks = steps.map(text => ({
     id: Date.now() + Math.random(),
@@ -418,23 +396,38 @@ function openAddModal() {
 function closeAddModal() {
   document.getElementById('add-modal').classList.add('hidden');
 }
-function submitTask() {
+
+// position: 'top' = add as next task, 'bottom' = add to end
+function submitTask(position = 'bottom') {
   const text = document.getElementById('add-input').value.trim();
   if (!text) { document.getElementById('add-input').focus(); return; }
-  tasks.push({
+
+  const newTask = {
     id: Date.now(),
     text,
     tags: [...selectedTags],
     done: false,
     subtasks: [],
-    color: randColor(),
+    color: null, // standalone tasks have no color dot
     created: Date.now(),
-  });
-  if (activeTasks().length === 1) currentIndex = 0;
+  };
+
+  if (position === 'top') {
+    // Insert at start of active tasks (before first non-done task)
+    const firstActiveIdx = tasks.findIndex(t => !t.done);
+    if (firstActiveIdx === -1) tasks.push(newTask);
+    else tasks.splice(firstActiveIdx, 0, newTask);
+    currentIndex = 0;
+  } else {
+    tasks.push(newTask);
+    if (activeTasks().length === 1) currentIndex = 0;
+  }
+
   save();
   closeAddModal();
   render();
 }
+
 function toggleTag(btn) {
   const tag = btn.dataset.tag;
   if (selectedTags.includes(tag)) {
@@ -448,6 +441,8 @@ function toggleTag(btn) {
 
 // ── TASK LIST ──
 function openList() {
+  currentSort = 'manual';
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === 'manual'));
   renderList();
   document.getElementById('list-overlay').classList.remove('hidden');
 }
@@ -461,94 +456,150 @@ function setFilter(btn, filter) {
   btn.classList.add('active');
   renderList();
 }
+function setSort(btn, sort) {
+  currentSort = sort;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderList();
+}
+
+function getSortedActiveTasks() {
+  const active = tasks.filter(t => !t.done);
+  if (currentSort === 'manual') return active;
+  if (currentSort === 'priority') {
+    return [...active].sort((a, b) => {
+      const pa = (a.tags || []).find(t => t in PRIO_ORDER);
+      const pb = (b.tags || []).find(t => t in PRIO_ORDER);
+      const va = pa !== undefined ? PRIO_ORDER[pa] : 99;
+      const vb = pb !== undefined ? PRIO_ORDER[pb] : 99;
+      return va - vb;
+    });
+  }
+  if (currentSort === 'time') {
+    return [...active].sort((a, b) => {
+      const ta = (a.tags || []).find(t => t in TIME_ORDER);
+      const tb = (b.tags || []).find(t => t in TIME_ORDER);
+      const va = ta !== undefined ? TIME_ORDER[ta] : 99;
+      const vb = tb !== undefined ? TIME_ORDER[tb] : 99;
+      return va - vb;
+    });
+  }
+  return active;
+}
 
 function renderList() {
+  const isDoneFilter = currentFilter === 'done';
+  const isAllFilter  = currentFilter === 'all';
+
+  // Show/hide sort bar — only relevant for active
+  const sortBar = document.getElementById('list-sort');
+  sortBar.style.display = isDoneFilter ? 'none' : 'flex';
+
+  // Show/hide clear done button
+  const clearDoneBtn = document.getElementById('clear-done-btn');
+  const doneTasks = tasks.filter(t => t.done);
+  clearDoneBtn.style.display = (isDoneFilter || isAllFilter) && doneTasks.length > 0 ? 'block' : 'none';
+
   let items;
-  if (currentFilter === 'active') items = tasks.filter(t => !t.done);
-  else if (currentFilter === 'done') items = tasks.filter(t => t.done);
-  else items = [...tasks];
+  if (isDoneFilter) items = doneTasks;
+  else if (isAllFilter) items = [...getSortedActiveTasks(), ...doneTasks];
+  else items = getSortedActiveTasks();
 
   const el = document.getElementById('list-items');
   if (items.length === 0) {
-    el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-dim);font-size:15px;">Nothing here yet.</div>`;
+    el.innerHTML = `<div class="list-empty">Nothing here yet.</div>`;
     return;
   }
 
   const timeOpts = ['5 min','15 min','30 min'];
   const prioOpts = ['Urgent','Easy','Fun'];
 
-  el.innerHTML = items.map((task, visIdx) => {
+  // Build a set of task IDs that have split children (to decide dot visibility)
+  const splitParentIds = new Set(tasks.filter(t => t.parentId).map(t => t.parentId));
+
+  el.innerHTML = items.map((task) => {
     const realIdx = tasks.indexOf(task);
     const cls     = task.done ? 'done' : '';
-    const meta    = [
-      task.tags && task.tags.length ? task.tags.join(' · ') : '',
-      task.subtasks && task.subtasks.length ? `${task.subtasks.filter(s=>s.done).length}/${task.subtasks.length} steps` : ''
-    ].filter(Boolean).join('  ·  ');
+
+    // Color dot: show only if task has a parentId (is a split child) OR is a split parent
+    const hasDot = task.parentId || splitParentIds.has(task.id);
+    const dotColor = task.color || 'var(--accent)';
 
     const timeTag = (task.tags || []).find(t => timeOpts.includes(t));
     const prioTag = (task.tags || []).find(t => prioOpts.includes(t));
     const ddId    = `list-dd-${realIdx}`;
 
+    // Is this task currently active on main screen?
+    const activeTsk = currentTask();
+    const isCurrent = !task.done && activeTsk && task.id === activeTsk.id;
+
     if (task.done) {
       return `
-        <div class="list-item ${cls}">
-          <div class="list-item-dot"></div>
+        <div class="list-item ${cls}" draggable="false">
+          <div class="list-item-dot ${hasDot ? '' : 'invisible'}" style="background:${dotColor}"></div>
           <div class="list-item-body">
             <div class="list-item-text">${esc(task.text)}</div>
-            ${meta ? `<div class="list-item-meta">${esc(meta)}</div>` : ''}
           </div>
           <div class="list-item-actions">
-            <button class="list-icon-btn del" onclick="listDelete(${realIdx})">Delete</button>
+            <button class="list-icon-btn del" onclick="listDelete(${realIdx},event)">Delete</button>
           </div>
         </div>`;
     }
 
-    // Active task — show time/priority labels + a "⋯" dropdown for crush/delete
     return `
-      <div class="list-item ${cls}">
-        <div class="list-item-dot" style="${task.color ? `background:${task.color}` : ''}"></div>
+      <div class="list-item ${cls} ${isCurrent ? 'is-current' : ''}"
+           draggable="${currentSort === 'manual' ? 'true' : 'false'}"
+           data-idx="${realIdx}"
+           onclick="listSelectTask(${realIdx})"
+           ondragstart="onDragStart(event,${realIdx})"
+           ondragover="onDragOver(event)"
+           ondrop="onDrop(event,${realIdx})"
+           ondragend="onDragEnd(event)">
+        <div class="drag-handle ${currentSort === 'manual' ? '' : 'hidden'}" onclick="event.stopPropagation()">⠿</div>
+        <div class="list-item-dot ${hasDot ? '' : 'invisible'}" style="background:${dotColor}"></div>
         <div class="list-item-body">
           <div class="list-item-text">${esc(task.text)}</div>
-          ${meta ? `<div class="list-item-meta">${esc(meta)}</div>` : ''}
+          <div class="list-item-row2">
+            <!-- Time pill dropdown -->
+            <div class="list-dd" onclick="event.stopPropagation()">
+              <button class="list-tag-btn ${timeTag ? 'active-tag' : ''}"
+                onclick="toggleListDd('${ddId}-time', event)">
+                ${timeTag || 'Time'} ▾
+              </button>
+              <div class="list-dd-menu" id="${ddId}-time">
+                ${timeOpts.map(opt => `
+                  <button class="qa-menu-item ${timeTag===opt?'selected':''}"
+                    onclick="listSetTag(${realIdx},'time','${opt}',event)">${opt}</button>
+                `).join('')}
+                ${timeTag ? `<div class="qa-menu-sep"></div>
+                  <button class="qa-menu-item" onclick="listClearTag(${realIdx},'time',event)">Clear</button>` : ''}
+              </div>
+            </div>
+            <!-- Priority pill dropdown -->
+            <div class="list-dd" onclick="event.stopPropagation()">
+              <button class="list-tag-btn ${prioTag ? 'active-tag' : ''}"
+                onclick="toggleListDd('${ddId}-prio', event)">
+                ${prioTag || 'Priority'} ▾
+              </button>
+              <div class="list-dd-menu" id="${ddId}-prio">
+                ${prioOpts.map(opt => `
+                  <button class="qa-menu-item ${prioTag===opt?'selected':''}"
+                    onclick="listSetTag(${realIdx},'prio','${opt}',event)">${opt}</button>
+                `).join('')}
+                ${prioTag ? `<div class="qa-menu-sep"></div>
+                  <button class="qa-menu-item" onclick="listClearTag(${realIdx},'prio',event)">Clear</button>` : ''}
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="list-item-actions">
-          <!-- Time pill dropdown -->
-          <div class="list-dd">
-            <button class="list-icon-btn ${timeTag ? 'active-tag' : ''}"
-              onclick="toggleListDd('${ddId}-time', event)">
-              ${timeTag || 'Time'} ▾
-            </button>
-            <div class="list-dd-menu" id="${ddId}-time">
-              ${timeOpts.map(opt => `
-                <button class="qa-menu-item ${timeTag===opt?'selected':''}"
-                  onclick="listSetTag(${realIdx},'time','${opt}',event)">${opt}</button>
-              `).join('')}
-              ${timeTag ? `<div class="qa-menu-sep"></div>
-                <button class="qa-menu-item" onclick="listClearTag(${realIdx},'time',event)">Clear</button>` : ''}
-            </div>
-          </div>
-          <!-- Priority pill dropdown -->
-          <div class="list-dd">
-            <button class="list-icon-btn ${prioTag ? 'active-tag' : ''}"
-              onclick="toggleListDd('${ddId}-prio', event)">
-              ${prioTag || 'Priority'} ▾
-            </button>
-            <div class="list-dd-menu" id="${ddId}-prio">
-              ${prioOpts.map(opt => `
-                <button class="qa-menu-item ${prioTag===opt?'selected':''}"
-                  onclick="listSetTag(${realIdx},'prio','${opt}',event)">${opt}</button>
-              `).join('')}
-              ${prioTag ? `<div class="qa-menu-sep"></div>
-                <button class="qa-menu-item" onclick="listClearTag(${realIdx},'prio',event)">Clear</button>` : ''}
-            </div>
-          </div>
-          <!-- Actions dropdown -->
+        <!-- Actions dropdown -->
+        <div class="list-item-actions" onclick="event.stopPropagation()">
           <div class="list-dd">
             <button class="list-icon-btn" onclick="toggleListDd('${ddId}-act', event)">⋯</button>
             <div class="list-dd-menu" id="${ddId}-act">
-              <button class="qa-menu-item crush" onclick="listCrush(${realIdx})">✊ Crush</button>
+              <button class="qa-menu-item crush" onclick="listCrush(${realIdx},event)">✊ Crush</button>
               <div class="qa-menu-sep"></div>
-              <button class="qa-menu-item danger" onclick="listDelete(${realIdx})">Delete</button>
+              <button class="qa-menu-item danger" onclick="listDelete(${realIdx},event)">Delete</button>
             </div>
           </div>
         </div>
@@ -556,15 +607,37 @@ function renderList() {
   }).join('');
 }
 
-function listCrush(idx) {
+// ── SELECT TASK FROM LIST ──
+function listSelectTask(realIdx) {
+  const task = tasks[realIdx];
+  if (!task || task.done) return;
+  const active = activeTasks();
+  const newIdx = active.indexOf(task);
+  if (newIdx === -1) return;
+  currentIndex = newIdx;
+  save();
+  closeList();
+  render();
+}
+
+function listCrush(idx, event) {
+  event && event.stopPropagation();
   tasks[idx].done = true;
-  if (currentIndex >= activeTasks().length) currentIndex = 0;
+  if (currentIndex >= activeTasks().length) currentIndex = Math.max(0, activeTasks().length - 1);
   save(); closeAllListDropdowns(); renderList(); render();
 }
-function listDelete(idx) {
+function listDelete(idx, event) {
+  event && event.stopPropagation();
   tasks.splice(idx, 1);
-  if (currentIndex >= activeTasks().length) currentIndex = 0;
+  if (currentIndex >= activeTasks().length) currentIndex = Math.max(0, activeTasks().length - 1);
   save(); closeAllListDropdowns(); renderList(); render();
+}
+
+function clearAllDone() {
+  if (!confirm('Clear all completed tasks?')) return;
+  tasks = tasks.filter(t => !t.done);
+  if (currentIndex >= activeTasks().length) currentIndex = 0;
+  save(); renderList(); render();
 }
 
 const TIME_OPTS = ['5 min','15 min','30 min'];
@@ -584,6 +657,49 @@ function listClearTag(idx, type, event) {
   const opts = type === 'time' ? TIME_OPTS : PRIO_OPTS;
   task.tags = (task.tags || []).filter(t => !opts.includes(t));
   save(); closeAllListDropdowns(); renderList(); render();
+}
+
+// ── DRAG & DROP ──
+function onDragStart(event, idx) {
+  dragSrcIdx = idx;
+  event.dataTransfer.effectAllowed = 'move';
+  event.currentTarget.classList.add('dragging');
+}
+function onDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  // highlight drop target
+  document.querySelectorAll('.list-item').forEach(el => el.classList.remove('drag-over'));
+  event.currentTarget.closest('.list-item')?.classList.add('drag-over');
+}
+function onDrop(event, targetIdx) {
+  event.preventDefault();
+  document.querySelectorAll('.list-item').forEach(el => el.classList.remove('drag-over'));
+  if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+
+  // Only reorder among active tasks (done tasks are not draggable)
+  const src  = tasks[dragSrcIdx];
+  const tgt  = tasks[targetIdx];
+  if (!src || !tgt || src.done || tgt.done) return;
+
+  // Remove src from array, insert before/after target
+  tasks.splice(dragSrcIdx, 1);
+  const newTargetIdx = tasks.indexOf(tgt);
+  tasks.splice(newTargetIdx, 0, src);
+
+  // Update currentIndex to follow the currently-displayed task
+  const active = activeTasks();
+  const currentTask_ = activeTasks()[currentIndex] || activeTasks()[0];
+  currentIndex = currentTask_ ? active.indexOf(currentTask_) : 0;
+  if (currentIndex < 0) currentIndex = 0;
+
+  dragSrcIdx = null;
+  save(); renderList(); render();
+}
+function onDragEnd(event) {
+  event.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.list-item').forEach(el => el.classList.remove('drag-over'));
+  dragSrcIdx = null;
 }
 
 // ── CONFETTI ──
@@ -608,7 +724,6 @@ function playConfetti(mini = false) {
     opacity: 1,
   }));
 
-  let rafId;
   (function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     let alive = false;
@@ -626,7 +741,7 @@ function playConfetti(mini = false) {
         ctx.restore();
       }
     });
-    if (alive) rafId = requestAnimationFrame(draw);
+    if (alive) requestAnimationFrame(draw);
     else ctx.clearRect(0, 0, canvas.width, canvas.height);
   })();
 }
@@ -647,6 +762,15 @@ function showCrushFlash() {
   }, 550);
 }
 
+// ── MOBILE: fix stuck hover after touch-tap ──
+(function() {
+  const card = document.getElementById('task-card');
+  card.addEventListener('touchstart', () => card.classList.add('touch-active'), { passive: true });
+  card.addEventListener('touchend', () => {
+    setTimeout(() => card.classList.remove('touch-active'), 900);
+  });
+})();
+
 // ── KEYBOARD ──
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
@@ -655,7 +779,19 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) {
     if (!document.getElementById('add-modal').classList.contains('hidden') &&
         document.activeElement !== document.getElementById('add-input')) {
-      submitTask();
+      submitTask('bottom');
+    }
+  }
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    if (document.getElementById('add-modal').classList.contains('hidden') &&
+        document.getElementById('list-overlay').classList.contains('hidden')) {
+      navTask(1);
+    }
+  }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    if (document.getElementById('add-modal').classList.contains('hidden') &&
+        document.getElementById('list-overlay').classList.contains('hidden')) {
+      navTask(-1);
     }
   }
 });

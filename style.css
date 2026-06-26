@@ -14,7 +14,6 @@
   --text-dim:    #aaaaaa;
   --danger:      #e53935;
   --green:       #16a34a;
-  --green-light: #dcfce7;
   --crush-bg:    #111111;
   --crush-fg:    #f5f5f0;
   --font:        'Space Grotesk', sans-serif;
@@ -74,7 +73,7 @@ html, body {
   white-space: nowrap;
 }
 #task-count:hover { border-color: var(--border); color: var(--text); }
-#task-count.has-done { color: var(--green); font-size: 17px; }
+#task-count.has-done { color: var(--green); }
 
 /* ── STAGE ── */
 #stage {
@@ -100,7 +99,7 @@ html, body {
   text-align: center;
 }
 
-/* ── TASK CARD — full pill ── */
+/* ── TASK CARD ── */
 #task-card {
   width: 100%;
   background: var(--surface);
@@ -114,9 +113,13 @@ html, body {
   display: none;
   text-align: center;
   box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+  /* prevent text selection on click */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-#task-card:hover {
+#task-card:hover,
+#task-card.touch-active {
   background: var(--crush-bg);
   border-color: var(--crush-bg);
   transform: scale(1.02);
@@ -130,9 +133,10 @@ html, body {
   line-height: 1.35;
   color: var(--text);
   word-break: break-word;
-  transition: opacity 0.18s, color 0.18s;
+  transition: opacity 0.18s;
 }
-#task-card:hover #task-text { opacity: 0; }
+#task-card:hover #task-text,
+#task-card.touch-active #task-text { opacity: 0; }
 
 #crush-hover-label {
   position: absolute;
@@ -148,7 +152,8 @@ html, body {
   border-radius: var(--radius-pill);
   letter-spacing: -0.01em;
 }
-#task-card:hover #crush-hover-label { opacity: 1; }
+#task-card:hover #crush-hover-label,
+#task-card.touch-active #crush-hover-label { opacity: 1; }
 
 /* ── EMPTY CARD ── */
 #empty-card { width: 100%; display: none; }
@@ -161,7 +166,7 @@ html, body {
   padding: 10px 0;
 }
 
-/* ── QUICK ACTIONS — 3 inline dropdowns ── */
+/* ── QUICK ACTIONS ── */
 #quick-actions {
   display: flex;
   align-items: center;
@@ -172,7 +177,6 @@ html, body {
   position: relative;
 }
 
-/* Generic pill button */
 .qa-pill {
   background: var(--surface);
   border: 1.5px solid var(--border);
@@ -189,22 +193,13 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
-  position: relative;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 .qa-pill:hover { border-color: var(--border2); color: var(--text); }
-.qa-pill.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-dim);
-}
+.qa-pill.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 .qa-pill.skip:hover { border-color: var(--border2); }
-.qa-pill.danger:hover { border-color: var(--danger); color: var(--danger); }
 
-/* Dropdown wrapper */
-.qa-dropdown {
-  position: relative;
-}
+.qa-dropdown { position: relative; }
 
 .qa-dropdown-menu {
   position: absolute;
@@ -237,16 +232,13 @@ html, body {
   border: none;
   font-family: var(--font);
   text-align: left;
+  width: 100%;
 }
 .qa-menu-item:hover { background: var(--surface2); color: var(--text); }
 .qa-menu-item.selected { color: var(--accent); }
 .qa-menu-item.danger { color: var(--danger); }
 .qa-menu-item.danger:hover { background: rgba(229,57,53,0.06); }
-.qa-menu-sep {
-  height: 1px;
-  background: var(--border);
-  margin: 4px 2px;
-}
+.qa-menu-sep { height: 1px; background: var(--border); margin: 4px 2px; }
 
 /* ── SUBTASKS ── */
 #subtask-list {
@@ -274,6 +266,8 @@ html, body {
   position: relative;
   overflow: hidden;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  user-select: none;
+  -webkit-user-select: none;
 }
 .subtask-card:hover {
   background: var(--crush-bg);
@@ -286,8 +280,7 @@ html, body {
 .subtask-card.done { opacity: 0.3; pointer-events: none; }
 
 .subtask-dot {
-  width: 10px;
-  height: 10px;
+  width: 10px; height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
   transition: opacity 0.18s;
@@ -319,8 +312,7 @@ html, body {
   background: none;
   border: 1.5px solid var(--border);
   border-radius: 50%;
-  width: 28px;
-  height: 28px;
+  width: 28px; height: 28px;
   font-size: 13px;
   color: var(--text-dim);
   cursor: pointer;
@@ -335,16 +327,40 @@ html, body {
 .subtask-del:hover { border-color: var(--danger); color: var(--danger); }
 .subtask-card:hover .subtask-del { opacity: 0; pointer-events: none; }
 
-/* ── QUEUE HINT ── */
+/* ── QUEUE HINT / NAV ── */
 #queue-hint {
   margin-top: 28px;
   display: none;
   align-items: center;
-  gap: 10px;
-  color: var(--text-dim);
-  font-size: 13px;
+  gap: 14px;
 }
-#queue-dots { letter-spacing: 4px; }
+
+.nav-btn {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  width: 36px; height: 36px;
+  font-size: 16px;
+  color: var(--text-mid);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  font-family: var(--font);
+  line-height: 1;
+  flex-shrink: 0;
+}
+.nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+#queue-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  min-width: 60px;
+  text-align: center;
+}
 
 /* ── EMPTY DONE ── */
 #empty-done-msg {
@@ -360,10 +376,8 @@ html, body {
 /* ── FAB ── */
 #fab {
   position: fixed;
-  bottom: 32px;
-  right: 32px;
-  width: 64px;
-  height: 64px;
+  bottom: 32px; right: 32px;
+  width: 64px; height: 64px;
   border-radius: 50%;
   background: var(--accent);
   color: #ffffff;
@@ -380,14 +394,10 @@ html, body {
   z-index: 10;
   user-select: none;
 }
-#fab:hover {
-  transform: scale(1.1);
-  background: #4836d4;
-  box-shadow: 0 6px 36px rgba(92,71,245,0.45);
-}
+#fab:hover { transform: scale(1.1); background: #4836d4; box-shadow: 0 6px 36px rgba(92,71,245,0.45); }
 #fab:active { transform: scale(0.95); }
 
-/* ── MODAL / OVERLAY SHARED ── */
+/* ── MODAL SHARED ── */
 .hidden { display: none !important; }
 
 #list-overlay,
@@ -403,11 +413,7 @@ html, body {
   justify-content: center;
   animation: fadeIn 0.2s ease;
 }
-
-/* Add modal is full screen centered */
-#add-modal {
-  align-items: center;
-}
+#add-modal { align-items: center; }
 
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
@@ -416,7 +422,6 @@ html, body {
 #list-panel {
   width: 100%;
   height: 100dvh;
-  max-width: 100%;
   background: var(--bg);
   display: flex;
   flex-direction: column;
@@ -436,8 +441,7 @@ html, body {
   background: var(--surface2);
   border: 1.5px solid var(--border);
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  width: 40px; height: 40px;
   font-size: 17px;
   color: var(--text-mid);
   cursor: pointer;
@@ -452,7 +456,7 @@ html, body {
 #list-filters {
   display: flex;
   gap: 8px;
-  padding: 18px 28px 12px;
+  padding: 18px 28px 0;
   flex-shrink: 0;
 }
 .filter-btn {
@@ -470,61 +474,164 @@ html, body {
 .filter-btn:hover { border-color: var(--border2); color: var(--text); }
 .filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
+/* Sort bar */
+#list-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 28px 0;
+  flex-shrink: 0;
+}
+.sort-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 2px;
+}
+.sort-btn {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 5px 14px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sort-btn:hover { border-color: var(--border2); color: var(--text-mid); }
+.sort-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+/* Clear done */
+#clear-done-wrap {
+  padding: 10px 28px 0;
+  flex-shrink: 0;
+}
+#clear-done-btn {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 6px 16px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+#clear-done-btn:hover { border-color: var(--danger); color: var(--danger); }
+
 #list-items {
   overflow-y: auto;
   flex: 1;
-  padding: 0 20px 32px;
+  padding: 8px 20px 32px;
+  margin-top: 8px;
 }
 #list-items::-webkit-scrollbar { width: 3px; }
 #list-items::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
+.list-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
 /* List row */
 .list-item {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 12px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 10px;
   border-bottom: 1px solid var(--border);
   border-radius: var(--radius-sm);
   transition: background 0.12s;
+  cursor: pointer;
+  position: relative;
 }
 .list-item:last-child { border-bottom: none; }
 .list-item:hover { background: var(--surface); }
+.list-item.is-current { background: var(--accent-dim); }
+.list-item.is-current:hover { background: var(--accent-dim); }
+.list-item.done { cursor: default; }
+
+/* Drag states */
+.list-item.dragging { opacity: 0.4; }
+.list-item.drag-over { background: var(--accent-dim); border-color: var(--accent); }
+
+.drag-handle {
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: grab;
+  padding: 2px 2px 0;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 2px;
+  touch-action: none;
+}
+.drag-handle:active { cursor: grabbing; }
 
 .list-item-dot {
-  width: 10px;
-  height: 10px;
+  width: 10px; height: 10px;
   border-radius: 50%;
-  background: var(--accent);
   flex-shrink: 0;
+  margin-top: 5px;
 }
-.list-item.done .list-item-dot { background: var(--green); }
+.list-item-dot.invisible { visibility: hidden; }
+.list-item.done .list-item-dot { background: var(--green) !important; visibility: visible; }
 
-.list-item-body { flex: 1; min-width: 0; }
+.list-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .list-item-text {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 400;
   color: var(--text);
   line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
 }
 .list-item.done .list-item-text { text-decoration: line-through; color: var(--text-mid); }
-.list-item-meta { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
 
-/* list row actions — dropdown style */
+/* Row 2 — tag dropdowns sit below the text */
+.list-item-row2 {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* List tag buttons (smaller than main pills) */
+.list-tag-btn {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.list-tag-btn:hover { border-color: var(--border2); color: var(--text-mid); }
+.list-tag-btn.active-tag { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+/* List row actions */
 .list-item-actions {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
-  position: relative;
+  align-self: flex-start;
 }
 
-/* List row dropdown */
-.list-dd {
-  position: relative;
-}
+.list-dd { position: relative; }
 .list-dd-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -555,17 +662,15 @@ html, body {
   white-space: nowrap;
 }
 .list-icon-btn:hover { border-color: var(--border2); color: var(--text-mid); }
-.list-icon-btn.crush:hover { border-color: var(--green); color: var(--green); }
-.list-icon-btn.del:hover   { border-color: var(--danger); color: var(--danger); }
-.list-icon-btn.active-tag  { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.list-icon-btn.del:hover { border-color: var(--danger); color: var(--danger); }
 
-/* ── ADD TASK MODAL — full screen centered ── */
+/* ── ADD TASK MODAL ── */
 #add-panel {
   width: 100%;
   max-width: 560px;
   background: var(--surface);
   border-radius: var(--radius);
-  padding: 40px 36px 40px;
+  padding: 40px 36px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -636,34 +741,47 @@ html, body {
 .tag-btn:hover { border-color: var(--border2); color: var(--text); }
 .tag-btn.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
-/* Add submit — dropdown pill */
+/* Two-button submit row */
 #add-submit-wrap {
-  position: relative;
+  display: flex;
+  gap: 10px;
 }
-#add-submit {
+.add-btn-primary {
+  flex: 1;
   background: var(--accent);
   border: none;
   border-radius: var(--radius-pill);
-  padding: 15px 28px;
+  padding: 15px 24px;
   font-family: var(--font);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #ffffff;
   cursor: pointer;
   transition: background 0.15s, transform 0.1s;
-  width: 100%;
-  text-align: left;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
-#add-submit:hover { background: #4836d4; }
-#add-submit:active { transform: scale(0.98); }
-#add-submit-arrow {
-  font-size: 18px;
-  font-weight: 400;
-  opacity: 0.7;
+.add-btn-primary:hover { background: #4836d4; }
+.add-btn-primary:active { transform: scale(0.98); }
+.add-btn-arrow { font-size: 17px; font-weight: 400; opacity: 0.7; }
+
+.add-btn-secondary {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 15px 20px;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-mid);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
 }
+.add-btn-secondary:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.add-btn-secondary:active { transform: scale(0.98); }
 
 /* ── SPLIT MODAL ── */
 #split-panel {
@@ -710,7 +828,6 @@ html, body {
   line-height: 1.4;
 }
 #split-parent-label strong { color: var(--text); }
-
 #split-inputs-wrap { display: flex; flex-direction: column; gap: 10px; }
 
 .split-input {
@@ -759,14 +876,12 @@ html, body {
 
 /* ── CONFETTI & FLASH ── */
 #confetti-canvas {
-  position: fixed;
-  inset: 0;
+  position: fixed; inset: 0;
   pointer-events: none;
   z-index: 999;
 }
 #crush-flash {
-  position: fixed;
-  inset: 0;
+  position: fixed; inset: 0;
   background: var(--crush-bg);
   opacity: 0;
   pointer-events: none;
@@ -792,9 +907,12 @@ html, body {
   #task-card { padding: 30px 28px; }
   #fab { bottom: 24px; right: 20px; width: 58px; height: 58px; font-size: 28px; }
   #list-header { padding: 22px 18px 0; }
-  #list-filters { padding: 14px 18px 10px; }
-  #list-items { padding: 0 10px 28px; }
+  #list-filters { padding: 14px 18px 0; }
+  #list-sort { padding: 10px 18px 0; }
+  #clear-done-wrap { padding: 8px 18px 0; }
+  #list-items { padding: 6px 10px 28px; }
   #add-panel { margin: 0 12px; padding: 28px 20px 32px; }
+  .add-btn-secondary { padding: 15px 14px; font-size: 13px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
