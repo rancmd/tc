@@ -2,18 +2,21 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:          #0a0a0a;
-  --surface:     #141414;
-  --surface2:    #1c1c1c;
-  --border:      #2a2a2a;
-  --border2:     #3a3a3a;
-  --accent:      #BFFF00;
-  --accent-dim:  rgba(191,255,0,0.10);
-  --text:        #f0f0f0;
-  --text-mid:    #888;
-  --text-dim:    #444;
-  --danger:      #ff4545;
-  --green:       #4ade80;
+  --bg:          #f5f5f0;
+  --surface:     #ffffff;
+  --surface2:    #efefea;
+  --border:      #ddddd8;
+  --border2:     #c8c8c2;
+  --accent:      #5c47f5;
+  --accent-dim:  rgba(92,71,245,0.08);
+  --text:        #111111;
+  --text-mid:    #666666;
+  --text-dim:    #aaaaaa;
+  --danger:      #e53935;
+  --green:       #16a34a;
+  --green-light: #dcfce7;
+  --crush-bg:    #111111;
+  --crush-fg:    #f5f5f0;
   --font:        'Space Grotesk', sans-serif;
   --radius-pill: 9999px;
   --radius:      20px;
@@ -102,7 +105,7 @@ html, body {
   width: 100%;
   background: var(--surface);
   border: 2px solid var(--border);
-  border-radius: var(--radius-pill);   /* 100% radius */
+  border-radius: var(--radius-pill);
   padding: 40px 48px;
   cursor: pointer;
   position: relative;
@@ -110,14 +113,14 @@ html, body {
   transition: border-color 0.18s, background 0.18s, transform 0.12s, box-shadow 0.18s;
   display: none;
   text-align: center;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
 }
 
-/* Hover: fill solid green like the FAB */
 #task-card:hover {
-  background: var(--green);
-  border-color: var(--green);
+  background: var(--crush-bg);
+  border-color: var(--crush-bg);
   transform: scale(1.02);
-  box-shadow: 0 0 40px rgba(74,222,128,0.25);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
 }
 #task-card:active { transform: scale(0.98); }
 
@@ -139,7 +142,7 @@ html, body {
   justify-content: center;
   font-size: clamp(22px, 4vw, 34px);
   font-weight: 700;
-  color: #0a0a0a;
+  color: var(--crush-fg);
   opacity: 0;
   transition: opacity 0.18s;
   border-radius: var(--radius-pill);
@@ -187,6 +190,7 @@ html, body {
   align-items: center;
   gap: 6px;
   position: relative;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 .qa-pill:hover { border-color: var(--border2); color: var(--text); }
 .qa-pill.active {
@@ -207,7 +211,7 @@ html, body {
   top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  background: #1e1e1e;
+  background: var(--surface);
   border: 1.5px solid var(--border2);
   border-radius: var(--radius-sm);
   padding: 6px;
@@ -216,7 +220,7 @@ html, body {
   gap: 2px;
   min-width: 150px;
   z-index: 50;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 .qa-dropdown-menu.open { display: flex; }
 
@@ -237,7 +241,7 @@ html, body {
 .qa-menu-item:hover { background: var(--surface2); color: var(--text); }
 .qa-menu-item.selected { color: var(--accent); }
 .qa-menu-item.danger { color: var(--danger); }
-.qa-menu-item.danger:hover { background: rgba(255,69,69,0.08); }
+.qa-menu-item.danger:hover { background: rgba(229,57,53,0.06); }
 .qa-menu-sep {
   height: 1px;
   background: var(--border);
@@ -269,12 +273,13 @@ html, body {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 .subtask-card:hover {
-  background: var(--green);
-  border-color: var(--green);
+  background: var(--crush-bg);
+  border-color: var(--crush-bg);
   transform: scale(1.01);
-  box-shadow: 0 0 24px rgba(74,222,128,0.2);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15);
 }
 .subtask-card:hover .subtask-text-label { opacity: 0; }
 .subtask-card:hover .subtask-crush-hint { opacity: 1; }
@@ -305,7 +310,7 @@ html, body {
   justify-content: center;
   font-size: 16px;
   font-weight: 700;
-  color: #0a0a0a;
+  color: var(--crush-fg);
   opacity: 0;
   transition: opacity 0.18s;
 }
@@ -361,7 +366,7 @@ html, body {
   height: 64px;
   border-radius: 50%;
   background: var(--accent);
-  color: #0a0a0a;
+  color: #ffffff;
   font-size: 32px;
   font-weight: 300;
   border: none;
@@ -370,15 +375,15 @@ html, body {
   align-items: center;
   justify-content: center;
   line-height: 1;
-  box-shadow: 0 4px 24px rgba(191,255,0,0.25);
+  box-shadow: 0 4px 24px rgba(92,71,245,0.30);
   transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
   z-index: 10;
   user-select: none;
 }
 #fab:hover {
   transform: scale(1.1);
-  background: #d4ff00;
-  box-shadow: 0 6px 36px rgba(191,255,0,0.4);
+  background: #4836d4;
+  box-shadow: 0 6px 36px rgba(92,71,245,0.45);
 }
 #fab:active { transform: scale(0.95); }
 
@@ -390,13 +395,18 @@ html, body {
 #split-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.8);
-  backdrop-filter: blur(8px);
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(6px);
   z-index: 200;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   animation: fadeIn 0.2s ease;
+}
+
+/* Add modal is full screen centered */
+#add-modal {
+  align-items: center;
 }
 
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
@@ -405,7 +415,7 @@ html, body {
 /* ── TASK LIST — full screen ── */
 #list-panel {
   width: 100%;
-  height: 100dvh;           /* full screen */
+  height: 100dvh;
   max-width: 100%;
   background: var(--bg);
   display: flex;
@@ -489,7 +499,6 @@ html, body {
   flex-shrink: 0;
 }
 .list-item.done .list-item-dot { background: var(--green); }
-.list-item.tomorrow .list-item-dot { background: var(--text-dim); }
 
 .list-item-body { flex: 1; min-width: 0; }
 .list-item-text {
@@ -504,12 +513,35 @@ html, body {
 .list-item.done .list-item-text { text-decoration: line-through; color: var(--text-mid); }
 .list-item-meta { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
 
-/* list quick action buttons */
+/* list row actions — dropdown style */
 .list-item-actions {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+  position: relative;
 }
+
+/* List row dropdown */
+.list-dd {
+  position: relative;
+}
+.list-dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+.list-dd-menu.open { display: flex; }
+
 .list-icon-btn {
   background: none;
   border: 1.5px solid var(--border);
@@ -525,18 +557,21 @@ html, body {
 .list-icon-btn:hover { border-color: var(--border2); color: var(--text-mid); }
 .list-icon-btn.crush:hover { border-color: var(--green); color: var(--green); }
 .list-icon-btn.del:hover   { border-color: var(--danger); color: var(--danger); }
+.list-icon-btn.active-tag  { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
-/* ── ADD TASK SHEET ── */
+/* ── ADD TASK MODAL — full screen centered ── */
 #add-panel {
   width: 100%;
-  max-width: 680px;
+  max-width: 560px;
   background: var(--surface);
-  border-radius: var(--radius) var(--radius) 0 0;
-  padding: 28px 24px 40px;
+  border-radius: var(--radius);
+  padding: 40px 36px 40px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
   animation: slideUp 0.25s ease;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.15);
+  margin: 0 20px;
 }
 #add-header {
   display: flex;
@@ -564,9 +599,9 @@ html, body {
   background: var(--surface2);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 16px 18px;
+  padding: 20px 22px;
   font-family: var(--font);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 500;
   color: var(--text);
   outline: none;
@@ -575,9 +610,9 @@ html, body {
   caret-color: var(--accent);
   transition: border-color 0.2s;
   width: 100%;
-  min-height: 80px;
+  min-height: 100px;
 }
-#add-input:focus { border-color: var(--accent); }
+#add-input:focus { border-color: var(--accent); background: var(--surface); }
 #add-input::placeholder { color: var(--text-dim); }
 
 #add-tags {
@@ -601,6 +636,10 @@ html, body {
 .tag-btn:hover { border-color: var(--border2); color: var(--text); }
 .tag-btn.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
+/* Add submit — dropdown pill */
+#add-submit-wrap {
+  position: relative;
+}
 #add-submit {
   background: var(--accent);
   border: none;
@@ -609,12 +648,22 @@ html, body {
   font-family: var(--font);
   font-size: 16px;
   font-weight: 700;
-  color: #0a0a0a;
+  color: #ffffff;
   cursor: pointer;
   transition: background 0.15s, transform 0.1s;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-#add-submit:hover { background: #d4ff00; }
+#add-submit:hover { background: #4836d4; }
 #add-submit:active { transform: scale(0.98); }
+#add-submit-arrow {
+  font-size: 18px;
+  font-weight: 400;
+  opacity: 0.7;
+}
 
 /* ── SPLIT MODAL ── */
 #split-panel {
@@ -677,7 +726,7 @@ html, body {
   transition: border-color 0.2s;
   width: 100%;
 }
-.split-input:focus { border-color: var(--accent); }
+.split-input:focus { border-color: var(--accent); background: var(--surface); }
 .split-input::placeholder { color: var(--text-dim); }
 
 .split-add-step {
@@ -702,11 +751,11 @@ html, body {
   font-family: var(--font);
   font-size: 16px;
   font-weight: 700;
-  color: #0a0a0a;
+  color: #ffffff;
   cursor: pointer;
   transition: background 0.15s;
 }
-#split-confirm:hover { background: #d4ff00; }
+#split-confirm:hover { background: #4836d4; }
 
 /* ── CONFETTI & FLASH ── */
 #confetti-canvas {
@@ -718,7 +767,7 @@ html, body {
 #crush-flash {
   position: fixed;
   inset: 0;
-  background: var(--accent);
+  background: var(--crush-bg);
   opacity: 0;
   pointer-events: none;
   z-index: 998;
@@ -729,7 +778,7 @@ html, body {
 #crush-flash-text {
   font-size: clamp(48px, 14vw, 100px);
   font-weight: 700;
-  color: #0a0a0a;
+  color: var(--crush-fg);
   letter-spacing: -0.03em;
   transform: scale(0.7);
   opacity: 0;
@@ -745,6 +794,7 @@ html, body {
   #list-header { padding: 22px 18px 0; }
   #list-filters { padding: 14px 18px 10px; }
   #list-items { padding: 0 10px 28px; }
+  #add-panel { margin: 0 12px; padding: 28px 20px 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

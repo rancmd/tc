@@ -7,6 +7,7 @@ let tasks        = [];
 let currentIndex = 0;
 let selectedTags = [];
 let currentFilter = 'active';
+let openListDd   = null; // track open list-row dropdown id
 
 const PROMPTS = [
   "What's your first task to crush today?",
@@ -24,15 +25,15 @@ const PROMPTS = [
 const CRUSH_WORDS = ['CRUSHED! 💥','BOOM! 🔥','NAILED IT! ⚡','DONE! ✊','YES! 🎉','DESTROYED! 💪'];
 
 const TAG_COLORS = {
-  '⚡ 5 min':  '#BFFF00',
-  '🕐 15 min': '#00cfff',
-  '⏰ 30 min': '#ff9f00',
-  '🔥 Urgent': '#ff4545',
-  '✌️ Easy':  '#7fff8a',
-  '🎉 Fun':   '#d084ff',
+  '5 min':  '#5c47f5',
+  '15 min': '#0ea5e9',
+  '30 min': '#f59e0b',
+  'Urgent': '#e53935',
+  'Easy':   '#16a34a',
+  'Fun':    '#9333ea',
 };
 
-const COLORS = ['#BFFF00','#00cfff','#ff9f00','#ff4545','#7fff8a','#d084ff','#ff6eb4','#4dc8ff'];
+const COLORS = ['#5c47f5','#0ea5e9','#f59e0b','#e53935','#16a34a','#9333ea','#ec4899','#06b6d4'];
 
 // ── STORAGE ──
 function save() {
@@ -43,12 +44,22 @@ function load() {
   try {
     tasks = JSON.parse(localStorage.getItem('tc_tasks') || '[]');
     currentIndex = parseInt(localStorage.getItem('tc_index') || '0', 10);
+    // migrate old emoji tags
+    tasks.forEach(t => {
+      if (!t.tags) t.tags = [];
+      t.tags = t.tags.map(tag => tag
+        .replace('⚡ ','').replace('🕐 ','').replace('⏰ ','').replace('🗓 ','')
+        .replace('🔥 ','').replace('✌️ ','').replace('🎉 ','')
+        .replace('1 hr','30 min')
+      );
+      t.tomorrow = false; // remove tomorrow flag
+    });
   } catch(e) { tasks = []; currentIndex = 0; }
   if (currentIndex >= activeTasks().length) currentIndex = 0;
 }
 
 // ── HELPERS ──
-function activeTasks()  { return tasks.filter(t => !t.done && !t.tomorrow); }
+function activeTasks()  { return tasks.filter(t => !t.done); }
 function currentTask()  { const a = activeTasks(); return a[currentIndex] || a[0] || null; }
 function esc(str)       { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function rand(arr)      { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -126,52 +137,52 @@ function render() {
   }
 }
 
-// ── QUICK ACTIONS (3 dropdowns + skip) ──
+// ── QUICK ACTIONS (3 dropdowns) ──
 function renderQuickActions(task) {
   const el = document.getElementById('quick-actions');
 
-  const timeTag  = (task.tags || []).find(t => t.includes('min'));
-  const prioTag  = (task.tags || []).find(t => ['🔥 Urgent','✌️ Easy','🎉 Fun'].includes(t));
+  const timeOpts = ['5 min','15 min','30 min'];
+  const prioOpts = ['Urgent','Easy','Fun'];
+  const timeTag  = (task.tags || []).find(t => timeOpts.includes(t));
+  const prioTag  = (task.tags || []).find(t => prioOpts.includes(t));
 
   el.innerHTML = `
     <!-- TIME dropdown -->
     <div class="qa-dropdown" id="dd-time">
       <button class="qa-pill ${timeTag ? 'active' : ''}" onclick="toggleDropdown('dd-time')">
-        ${timeTag || '⏱ Time'} ▾
+        ${timeTag || 'Time'} ▾
       </button>
       <div class="qa-dropdown-menu" id="dd-time-menu">
-        <button class="qa-menu-item ${timeTag==='⚡ 5 min'?'selected':''}"  onclick="setTime('⚡ 5 min')">⚡ 5 min</button>
-        <button class="qa-menu-item ${timeTag==='🕐 15 min'?'selected':''}" onclick="setTime('🕐 15 min')">🕐 15 min</button>
-        <button class="qa-menu-item ${timeTag==='⏰ 30 min'?'selected':''}" onclick="setTime('⏰ 30 min')">⏰ 30 min</button>
-        <button class="qa-menu-item ${timeTag==='🗓 1 hr'?'selected':''}"   onclick="setTime('🗓 1 hr')">🗓 1 hr</button>
-        ${timeTag ? '<div class="qa-menu-sep"></div><button class="qa-menu-item" onclick="clearTime()">✕ Clear</button>' : ''}
+        <button class="qa-menu-item ${timeTag==='5 min'?'selected':''}"  onclick="setTime('5 min')">5 min</button>
+        <button class="qa-menu-item ${timeTag==='15 min'?'selected':''}" onclick="setTime('15 min')">15 min</button>
+        <button class="qa-menu-item ${timeTag==='30 min'?'selected':''}" onclick="setTime('30 min')">30 min</button>
+        ${timeTag ? '<div class="qa-menu-sep"></div><button class="qa-menu-item" onclick="clearTime()">Clear</button>' : ''}
       </div>
     </div>
 
     <!-- PRIORITY dropdown -->
     <div class="qa-dropdown" id="dd-prio">
       <button class="qa-pill ${prioTag ? 'active' : ''}" onclick="toggleDropdown('dd-prio')">
-        ${prioTag || '🎯 Priority'} ▾
+        ${prioTag || 'Priority'} ▾
       </button>
       <div class="qa-dropdown-menu" id="dd-prio-menu">
-        <button class="qa-menu-item ${prioTag==='🔥 Urgent'?'selected':''}" onclick="setPrio('🔥 Urgent')">🔥 Urgent</button>
-        <button class="qa-menu-item ${prioTag==='✌️ Easy'?'selected':''}"  onclick="setPrio('✌️ Easy')">✌️ Easy</button>
-        <button class="qa-menu-item ${prioTag==='🎉 Fun'?'selected':''}"   onclick="setPrio('🎉 Fun')">🎉 Fun</button>
-        ${prioTag ? '<div class="qa-menu-sep"></div><button class="qa-menu-item" onclick="clearPrio()">✕ Clear</button>' : ''}
+        <button class="qa-menu-item ${prioTag==='Urgent'?'selected':''}" onclick="setPrio('Urgent')">Urgent</button>
+        <button class="qa-menu-item ${prioTag==='Easy'?'selected':''}"   onclick="setPrio('Easy')">Easy</button>
+        <button class="qa-menu-item ${prioTag==='Fun'?'selected':''}"    onclick="setPrio('Fun')">Fun</button>
+        ${prioTag ? '<div class="qa-menu-sep"></div><button class="qa-menu-item" onclick="clearPrio()">Clear</button>' : ''}
       </div>
     </div>
 
     <!-- PUSH + DELETE dropdown -->
     <div class="qa-dropdown" id="dd-push">
-      <button class="qa-pill skip" onclick="toggleDropdown('dd-push')">→ Push ▾</button>
+      <button class="qa-pill skip" onclick="toggleDropdown('dd-push')">Push ▾</button>
       <div class="qa-dropdown-menu" id="dd-push-menu">
-        <button class="qa-menu-item" onclick="pushTask('next')">→ Next up</button>
-        <button class="qa-menu-item" onclick="pushTask('end')">↓ End of list</button>
-        <button class="qa-menu-item" onclick="pushTask('tomorrow')">📅 Tomorrow</button>
+        <button class="qa-menu-item" onclick="pushTask('next')">Move down one</button>
+        <button class="qa-menu-item" onclick="pushTask('end')">Send to end</button>
         <div class="qa-menu-sep"></div>
-        <button class="qa-menu-item" onclick="openSplitModal()">✂️ Split task</button>
+        <button class="qa-menu-item" onclick="openSplitModal()">Split task</button>
         <div class="qa-menu-sep"></div>
-        <button class="qa-menu-item danger" onclick="deleteCurrentTask()">🗑 Delete</button>
+        <button class="qa-menu-item danger" onclick="deleteCurrentTask()">Delete</button>
       </div>
     </div>
   `;
@@ -184,46 +195,69 @@ function toggleDropdown(id) {
   const isOpen = document.getElementById(menuId)?.classList.contains('open');
   menus.forEach(m => document.getElementById(m)?.classList.remove('open'));
   if (!isOpen) document.getElementById(menuId)?.classList.add('open');
-  // close on outside click
   setTimeout(() => {
     document.addEventListener('click', closeDropdownsOutside, { once: true });
   }, 0);
 }
 
 function closeDropdownsOutside(e) {
-  if (!e.target.closest('.qa-dropdown')) closeAllDropdowns();
+  if (!e.target.closest('.qa-dropdown') && !e.target.closest('.list-dd')) closeAllDropdowns();
 }
 function closeAllDropdowns() {
   ['dd-time-menu','dd-prio-menu','dd-push-menu'].forEach(m => {
     document.getElementById(m)?.classList.remove('open');
   });
+  closeAllListDropdowns();
+}
+
+// ── LIST ROW DROPDOWNS ──
+function toggleListDd(id, event) {
+  event && event.stopPropagation();
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isOpen = el.classList.contains('open');
+  closeAllListDropdowns();
+  if (!isOpen) {
+    el.classList.add('open');
+    openListDd = id;
+    setTimeout(() => {
+      document.addEventListener('click', closeListDdOutside, { once: true });
+    }, 0);
+  }
+}
+function closeListDdOutside(e) {
+  if (!e.target.closest('.list-dd')) closeAllListDropdowns();
+}
+function closeAllListDropdowns() {
+  document.querySelectorAll('.list-dd-menu.open').forEach(m => m.classList.remove('open'));
+  openListDd = null;
 }
 
 // tag helpers
 function setTime(tag) {
   const task = currentTask(); if (!task) return;
-  task.tags = (task.tags || []).filter(t => !t.includes('min') && t !== '🗓 1 hr');
+  task.tags = (task.tags || []).filter(t => !['5 min','15 min','30 min'].includes(t));
   task.tags.push(tag);
   save(); closeAllDropdowns(); render();
 }
 function clearTime() {
   const task = currentTask(); if (!task) return;
-  task.tags = (task.tags || []).filter(t => !t.includes('min') && t !== '🗓 1 hr');
+  task.tags = (task.tags || []).filter(t => !['5 min','15 min','30 min'].includes(t));
   save(); closeAllDropdowns(); render();
 }
 function setPrio(tag) {
   const task = currentTask(); if (!task) return;
-  task.tags = (task.tags || []).filter(t => !['🔥 Urgent','✌️ Easy','🎉 Fun'].includes(t));
+  task.tags = (task.tags || []).filter(t => !['Urgent','Easy','Fun'].includes(t));
   task.tags.push(tag);
   save(); closeAllDropdowns(); render();
 }
 function clearPrio() {
   const task = currentTask(); if (!task) return;
-  task.tags = (task.tags || []).filter(t => !['🔥 Urgent','✌️ Easy','🎉 Fun'].includes(t));
+  task.tags = (task.tags || []).filter(t => !['Urgent','Easy','Fun'].includes(t));
   save(); closeAllDropdowns(); render();
 }
 
-// ── SUBTASKS — each rendered as independent card ──
+// ── SUBTASKS ──
 function renderSubtasks(task) {
   const el = document.getElementById('subtask-list');
   if (!task.subtasks || task.subtasks.length === 0) { el.innerHTML = ''; return; }
@@ -263,23 +297,41 @@ function crushSubtask(idx) {
 }
 
 // ── PUSH ──
+// "next" = swap current task with the one right after it in active list (move down one)
+// "end"  = move to end of active tasks
 function pushTask(where) {
   const task = currentTask(); if (!task) return;
   closeAllDropdowns();
-  const idx = tasks.indexOf(task);
-  tasks.splice(idx, 1);
 
-  if (where === 'tomorrow') {
-    task.tomorrow = true;
-    tasks.push(task);
-  } else if (where === 'end') {
-    tasks.push(task);
+  const active = activeTasks();
+  const activeIdx = active.indexOf(task);       // position in active array
+  const globalIdx = tasks.indexOf(task);         // position in full tasks array
+
+  if (where === 'end') {
+    // Remove from current position, place after the last non-done task
+    tasks.splice(globalIdx, 1);
+    // Find last non-done task position
+    let lastActive = -1;
+    tasks.forEach((t, i) => { if (!t.done) lastActive = i; });
+    tasks.splice(lastActive + 1, 0, task);
   } else {
-    // next: insert right after current first active
-    const firstActive = tasks.findIndex(t => !t.done && !t.tomorrow);
-    tasks.splice(firstActive >= 0 ? firstActive + 1 : tasks.length, 0, task);
+    // "next" = move down one spot in the active queue
+    // Find the next active task right after this one
+    const nextActive = active[activeIdx + 1];
+    if (!nextActive) {
+      // Already last — nothing to do
+      save(); render(); return;
+    }
+    const nextGlobalIdx = tasks.indexOf(nextActive);
+    // Swap them in the tasks array
+    tasks.splice(globalIdx, 1);
+    // After removal, nextActive shifted up one if it was after globalIdx
+    const newNextIdx = tasks.indexOf(nextActive);
+    tasks.splice(newNextIdx + 1, 0, task);
   }
 
+  // currentIndex stays 0 (the next task in queue becomes current)
+  currentIndex = 0;
   if (currentIndex >= activeTasks().length) currentIndex = 0;
   save(); render();
 }
@@ -300,7 +352,7 @@ function deleteSubtask(idx) {
   save(); renderSubtasks(task);
 }
 
-// ── SPLIT — steps become independent tasks injected after current ──
+// ── SPLIT ──
 function openSplitModal() {
   const task = currentTask(); if (!task) return;
   closeAllDropdowns();
@@ -336,20 +388,17 @@ function confirmSplit() {
   const task = currentTask(); if (!task) return;
   const color = task.color || randColor();
 
-  // Build new task objects for each step, color-linked to parent
   const newTasks = steps.map(text => ({
     id: Date.now() + Math.random(),
     text,
     tags: [],
     done: false,
-    tomorrow: false,
     subtasks: [],
-    color,                   // same color = visually grouped
+    color,
     parentId: task.id,
     created: Date.now(),
   }));
 
-  // Insert new tasks right after the current task in the array
   const taskIdx = tasks.indexOf(task);
   tasks.splice(taskIdx + 1, 0, ...newTasks);
 
@@ -377,7 +426,6 @@ function submitTask() {
     text,
     tags: [...selectedTags],
     done: false,
-    tomorrow: false,
     subtasks: [],
     color: randColor(),
     created: Date.now(),
@@ -405,6 +453,7 @@ function openList() {
 }
 function closeList() {
   document.getElementById('list-overlay').classList.add('hidden');
+  closeAllListDropdowns();
 }
 function setFilter(btn, filter) {
   currentFilter = filter;
@@ -425,75 +474,116 @@ function renderList() {
     return;
   }
 
-  el.innerHTML = items.map(task => {
+  const timeOpts = ['5 min','15 min','30 min'];
+  const prioOpts = ['Urgent','Easy','Fun'];
+
+  el.innerHTML = items.map((task, visIdx) => {
     const realIdx = tasks.indexOf(task);
-    const cls     = task.done ? 'done' : task.tomorrow ? 'tomorrow' : '';
+    const cls     = task.done ? 'done' : '';
     const meta    = [
       task.tags && task.tags.length ? task.tags.join(' · ') : '',
       task.subtasks && task.subtasks.length ? `${task.subtasks.filter(s=>s.done).length}/${task.subtasks.length} steps` : ''
     ].filter(Boolean).join('  ·  ');
 
-    // time & priority quick-set buttons
-    const timeTag  = (task.tags || []).find(t => t.includes('min') || t === '🗓 1 hr');
-    const prioTag  = (task.tags || []).find(t => ['🔥 Urgent','✌️ Easy','🎉 Fun'].includes(t));
+    const timeTag = (task.tags || []).find(t => timeOpts.includes(t));
+    const prioTag = (task.tags || []).find(t => prioOpts.includes(t));
+    const ddId    = `list-dd-${realIdx}`;
 
-    const actions = task.done
-      ? `<button class="list-icon-btn del" onclick="listDelete(${realIdx})">🗑</button>`
-      : `
-        <button class="list-icon-btn" onclick="listSetTime(${realIdx})" title="Set time">
-          ${timeTag || '⏱'}
-        </button>
-        <button class="list-icon-btn" onclick="listSetPrio(${realIdx})" title="Set priority">
-          ${prioTag || '🎯'}
-        </button>
-        <button class="list-icon-btn crush" onclick="listCrush(${realIdx})">✊</button>
-        <button class="list-icon-btn del"   onclick="listDelete(${realIdx})">🗑</button>
-      `;
+    if (task.done) {
+      return `
+        <div class="list-item ${cls}">
+          <div class="list-item-dot"></div>
+          <div class="list-item-body">
+            <div class="list-item-text">${esc(task.text)}</div>
+            ${meta ? `<div class="list-item-meta">${esc(meta)}</div>` : ''}
+          </div>
+          <div class="list-item-actions">
+            <button class="list-icon-btn del" onclick="listDelete(${realIdx})">Delete</button>
+          </div>
+        </div>`;
+    }
 
+    // Active task — show time/priority labels + a "⋯" dropdown for crush/delete
     return `
       <div class="list-item ${cls}">
-        <div class="list-item-dot" style="${task.color && !task.done ? `background:${task.color}` : ''}"></div>
+        <div class="list-item-dot" style="${task.color ? `background:${task.color}` : ''}"></div>
         <div class="list-item-body">
           <div class="list-item-text">${esc(task.text)}</div>
           ${meta ? `<div class="list-item-meta">${esc(meta)}</div>` : ''}
         </div>
-        <div class="list-item-actions">${actions}</div>
-      </div>
-    `;
+        <div class="list-item-actions">
+          <!-- Time pill dropdown -->
+          <div class="list-dd">
+            <button class="list-icon-btn ${timeTag ? 'active-tag' : ''}"
+              onclick="toggleListDd('${ddId}-time', event)">
+              ${timeTag || 'Time'} ▾
+            </button>
+            <div class="list-dd-menu" id="${ddId}-time">
+              ${timeOpts.map(opt => `
+                <button class="qa-menu-item ${timeTag===opt?'selected':''}"
+                  onclick="listSetTag(${realIdx},'time','${opt}',event)">${opt}</button>
+              `).join('')}
+              ${timeTag ? `<div class="qa-menu-sep"></div>
+                <button class="qa-menu-item" onclick="listClearTag(${realIdx},'time',event)">Clear</button>` : ''}
+            </div>
+          </div>
+          <!-- Priority pill dropdown -->
+          <div class="list-dd">
+            <button class="list-icon-btn ${prioTag ? 'active-tag' : ''}"
+              onclick="toggleListDd('${ddId}-prio', event)">
+              ${prioTag || 'Priority'} ▾
+            </button>
+            <div class="list-dd-menu" id="${ddId}-prio">
+              ${prioOpts.map(opt => `
+                <button class="qa-menu-item ${prioTag===opt?'selected':''}"
+                  onclick="listSetTag(${realIdx},'prio','${opt}',event)">${opt}</button>
+              `).join('')}
+              ${prioTag ? `<div class="qa-menu-sep"></div>
+                <button class="qa-menu-item" onclick="listClearTag(${realIdx},'prio',event)">Clear</button>` : ''}
+            </div>
+          </div>
+          <!-- Actions dropdown -->
+          <div class="list-dd">
+            <button class="list-icon-btn" onclick="toggleListDd('${ddId}-act', event)">⋯</button>
+            <div class="list-dd-menu" id="${ddId}-act">
+              <button class="qa-menu-item crush" onclick="listCrush(${realIdx})">✊ Crush</button>
+              <div class="qa-menu-sep"></div>
+              <button class="qa-menu-item danger" onclick="listDelete(${realIdx})">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
   }).join('');
 }
 
 function listCrush(idx) {
   tasks[idx].done = true;
   if (currentIndex >= activeTasks().length) currentIndex = 0;
-  save(); renderList(); render();
+  save(); closeAllListDropdowns(); renderList(); render();
 }
 function listDelete(idx) {
   tasks.splice(idx, 1);
   if (currentIndex >= activeTasks().length) currentIndex = 0;
-  save(); renderList(); render();
+  save(); closeAllListDropdowns(); renderList(); render();
 }
 
-// Cycle through time options inline
-const TIME_OPTS = ['⚡ 5 min','🕐 15 min','⏰ 30 min','🗓 1 hr'];
-function listSetTime(idx) {
-  const task    = tasks[idx]; if (!task) return;
-  const current = (task.tags || []).find(t => TIME_OPTS.includes(t));
-  const next    = current ? TIME_OPTS[(TIME_OPTS.indexOf(current) + 1) % TIME_OPTS.length] : TIME_OPTS[0];
-  task.tags = (task.tags || []).filter(t => !TIME_OPTS.includes(t));
-  task.tags.push(next);
-  save(); renderList(); render();
-}
+const TIME_OPTS = ['5 min','15 min','30 min'];
+const PRIO_OPTS = ['Urgent','Easy','Fun'];
 
-// Cycle through priority options inline
-const PRIO_OPTS = ['🔥 Urgent','✌️ Easy','🎉 Fun'];
-function listSetPrio(idx) {
-  const task    = tasks[idx]; if (!task) return;
-  const current = (task.tags || []).find(t => PRIO_OPTS.includes(t));
-  const next    = current ? PRIO_OPTS[(PRIO_OPTS.indexOf(current) + 1) % PRIO_OPTS.length] : PRIO_OPTS[0];
-  task.tags = (task.tags || []).filter(t => !PRIO_OPTS.includes(t));
-  task.tags.push(next);
-  save(); renderList(); render();
+function listSetTag(idx, type, value, event) {
+  event && event.stopPropagation();
+  const task = tasks[idx]; if (!task) return;
+  const opts = type === 'time' ? TIME_OPTS : PRIO_OPTS;
+  task.tags = (task.tags || []).filter(t => !opts.includes(t));
+  task.tags.push(value);
+  save(); closeAllListDropdowns(); renderList(); render();
+}
+function listClearTag(idx, type, event) {
+  event && event.stopPropagation();
+  const task = tasks[idx]; if (!task) return;
+  const opts = type === 'time' ? TIME_OPTS : PRIO_OPTS;
+  task.tags = (task.tags || []).filter(t => !opts.includes(t));
+  save(); closeAllListDropdowns(); renderList(); render();
 }
 
 // ── CONFETTI ──
@@ -504,7 +594,7 @@ function playConfetti(mini = false) {
   canvas.height = window.innerHeight;
 
   const count  = mini ? 50 : 150;
-  const colors = ['#BFFF00','#ffffff','#ff4545','#00cfff','#ff9f00','#d084ff'];
+  const colors = ['#5c47f5','#f59e0b','#e53935','#0ea5e9','#16a34a','#9333ea'];
   const pieces = Array.from({ length: count }, () => ({
     x:  canvas.width / 2 + (Math.random() - 0.5) * (mini ? 100 : canvas.width * 0.7),
     y:  mini ? canvas.height * 0.45 : -10,
@@ -586,8 +676,8 @@ document.addEventListener('click', e => {
 (function() {
   const m = {
     name:'Task Crusher', short_name:'Crusher', start_url:'.', display:'standalone',
-    background_color:'#0a0a0a', theme_color:'#0a0a0a',
-    icons:[{ src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230a0a0a'/><text y='.9em' font-size='76' x='12'>⚡</text></svg>", sizes:'192x192', type:'image/svg+xml' }]
+    background_color:'#f5f5f0', theme_color:'#f5f5f0',
+    icons:[{ src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23f5f5f0'/><text y='.9em' font-size='76' x='12'>✊</text></svg>", sizes:'192x192', type:'image/svg+xml' }]
   };
   const link = document.createElement('link');
   link.rel = 'manifest';

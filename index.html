@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="theme-color" content="#f5f5f0" />
   <title>Task Crusher</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
@@ -52,7 +52,7 @@
         <div id="empty-prompt"></div>
       </div>
 
-      <!-- Quick actions: 3 dropdowns + skip -->
+      <!-- Quick actions: 3 dropdowns -->
       <div id="quick-actions"></div>
 
       <!-- Subtasks -->
@@ -71,7 +71,7 @@
     <button id="fab" onclick="openAddModal()" title="Add task">+</button>
   </div>
 
-  <!-- ── ADD TASK SHEET ── -->
+  <!-- ── ADD TASK MODAL — full screen centered ── -->
   <div id="add-modal" class="hidden">
     <div id="add-panel">
       <div id="add-header">
@@ -80,14 +80,19 @@
       </div>
       <textarea id="add-input" placeholder="What needs to be done?" rows="3"></textarea>
       <div id="add-tags">
-        <button class="tag-btn" data-tag="⚡ 5 min" onclick="toggleTag(this)">⚡ 5 min</button>
-        <button class="tag-btn" data-tag="🕐 15 min" onclick="toggleTag(this)">🕐 15 min</button>
-        <button class="tag-btn" data-tag="⏰ 30 min" onclick="toggleTag(this)">⏰ 30 min</button>
-        <button class="tag-btn" data-tag="🔥 Urgent" onclick="toggleTag(this)">🔥 Urgent</button>
-        <button class="tag-btn" data-tag="✌️ Easy" onclick="toggleTag(this)">✌️ Easy</button>
-        <button class="tag-btn" data-tag="🎉 Fun" onclick="toggleTag(this)">🎉 Fun</button>
+        <button class="tag-btn" data-tag="5 min" onclick="toggleTag(this)">5 min</button>
+        <button class="tag-btn" data-tag="15 min" onclick="toggleTag(this)">15 min</button>
+        <button class="tag-btn" data-tag="30 min" onclick="toggleTag(this)">30 min</button>
+        <button class="tag-btn" data-tag="Urgent" onclick="toggleTag(this)">Urgent</button>
+        <button class="tag-btn" data-tag="Easy" onclick="toggleTag(this)">Easy</button>
+        <button class="tag-btn" data-tag="Fun" onclick="toggleTag(this)">Fun</button>
       </div>
-      <button id="add-submit" onclick="submitTask()">Add Task</button>
+      <div id="add-submit-wrap">
+        <button id="add-submit" onclick="submitTask()">
+          Add Task
+          <span id="add-submit-arrow">↵</span>
+        </button>
+      </div>
     </div>
   </div>
 
