@@ -12,62 +12,50 @@
 </head>
 <body>
 
-  <!-- Confetti canvas -->
   <canvas id="confetti-canvas"></canvas>
+  <div id="crush-flash"><div id="crush-flash-text"></div></div>
 
-  <!-- Crush flash overlay -->
-  <div id="crush-flash">
-    <div id="crush-flash-text"></div>
-  </div>
-
-  <!-- ── TASK LIST OVERLAY ── -->
+  <!-- ── TASK LIST OVERLAY (full screen) ── -->
   <div id="list-overlay" class="hidden">
     <div id="list-panel">
       <div id="list-header">
         <div id="list-title">All Tasks</div>
         <button id="list-close" onclick="closeList()">✕</button>
       </div>
-
       <div id="list-filters">
         <button class="filter-btn active" data-filter="active" onclick="setFilter(this,'active')">Active</button>
         <button class="filter-btn" data-filter="done" onclick="setFilter(this,'done')">Done</button>
         <button class="filter-btn" data-filter="all" onclick="setFilter(this,'all')">All</button>
       </div>
-
       <div id="list-items"></div>
     </div>
   </div>
 
   <!-- ── APP ── -->
   <div id="app">
-
-    <!-- Header -->
     <div id="top-bar">
       <div id="logo">TASK <span>CRUSHER</span></div>
       <div id="task-count" onclick="openList()"></div>
     </div>
 
-    <!-- Main stage -->
     <div id="stage">
-
-      <!-- Tag badge -->
       <div id="task-badge"></div>
 
-      <!-- Current task card (click to crush) -->
+      <!-- Task card — click to crush -->
       <div id="task-card" onclick="handleCardClick()">
         <div id="task-text"></div>
         <div id="crush-hover-label">✊ Crush it!</div>
       </div>
 
-      <!-- Empty / prompt state -->
+      <!-- Empty state -->
       <div id="empty-card">
         <div id="empty-prompt"></div>
       </div>
 
-      <!-- Quick actions row below task -->
+      <!-- Quick actions: 3 dropdowns + skip -->
       <div id="quick-actions"></div>
 
-      <!-- Subtasks list -->
+      <!-- Subtasks -->
       <div id="subtask-list"></div>
 
       <!-- Queue hint -->
@@ -76,19 +64,14 @@
         <span id="queue-label"></span>
       </div>
 
-      <!-- Empty done message -->
-      <div id="empty-done-msg">
-        🎉 <strong>Queue empty.</strong> You crushed everything.
-      </div>
+      <div id="empty-done-msg">🎉 <strong>Queue empty.</strong> You crushed everything.</div>
+    </div>
 
-    </div><!-- /stage -->
-
-    <!-- Add task FAB -->
+    <!-- FAB -->
     <button id="fab" onclick="openAddModal()" title="Add task">+</button>
+  </div>
 
-  </div><!-- /app -->
-
-  <!-- ── ADD TASK MODAL ── -->
+  <!-- ── ADD TASK SHEET ── -->
   <div id="add-modal" class="hidden">
     <div id="add-panel">
       <div id="add-header">
@@ -119,31 +102,6 @@
       <div id="split-inputs-wrap"></div>
       <button class="split-add-step" onclick="addSplitInput()">+ Add step</button>
       <button id="split-confirm" onclick="confirmSplit()">Done — split it</button>
-    </div>
-  </div>
-
-  <!-- ── ACTION EDIT MODAL ── -->
-  <div id="action-modal" class="hidden">
-    <div id="action-panel">
-      <div id="action-header-row">
-        <div id="action-title">Quick Actions</div>
-        <button onclick="closeActionModal()">✕</button>
-      </div>
-      <div id="action-options">
-        <button class="action-option" onclick="actionSetTime('⚡ 5 min')">⚡ 5 min</button>
-        <button class="action-option" onclick="actionSetTime('🕐 15 min')">🕐 15 min</button>
-        <button class="action-option" onclick="actionSetTime('⏰ 30 min')">⏰ 30 min</button>
-        <button class="action-option" onclick="actionSetPriority('🔥 Urgent')">🔥 Urgent</button>
-        <button class="action-option" onclick="actionSetPriority('✌️ Easy')">✌️ Easy</button>
-        <button class="action-option" onclick="actionSetPriority('🎉 Fun')">🎉 Fun</button>
-        <div class="action-divider"></div>
-        <button class="action-option" onclick="actionPush('next')">→ Push to next</button>
-        <button class="action-option" onclick="actionPush('end')">↓ Push to end</button>
-        <button class="action-option" onclick="actionPush('tomorrow')">📅 Tomorrow</button>
-        <div class="action-divider"></div>
-        <button class="action-option" onclick="openSplitModal(); closeActionModal()">✂️ Split task</button>
-        <button class="action-option danger" onclick="deleteCurrentTask(); closeActionModal()">🗑 Delete task</button>
-      </div>
     </div>
   </div>
 
