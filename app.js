@@ -5,11 +5,14 @@
 // ── STATE ──
 let tasks         = [];
 let currentIndex  = 0;
-let selectedTags  = [];
 let currentFilter = 'active';
-let currentSort   = 'manual'; // 'manual' | 'priority' | 'time'
+let currentSort   = 'manual';
 let openListDd    = null;
-let dragSrcIdx    = null; // drag source index in full tasks array
+let dragSrcIdx    = null;
+
+// Add-screen tag state
+let addTimeTag = null;
+let addPrioTag = null;
 
 const PROMPTS = [
   "What's your first task to crush today?",
@@ -63,11 +66,18 @@ function load() {
 }
 
 // ── HELPERS ──
-function activeTasks()  { return tasks.filter(t => !t.done); }
-function currentTask()  { const a = activeTasks(); return a[currentIndex] || a[0] || null; }
-function esc(str)       { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function rand(arr)      { return arr[Math.floor(Math.random() * arr.length)]; }
-function randColor()    { return rand(COLORS); }
+function activeTasks() { return tasks.filter(t => !t.done); }
+function currentTask() { const a = activeTasks(); return a[currentIndex] || a[0] || null; }
+function esc(str)      { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function rand(arr)     { return arr[Math.floor(Math.random() * arr.length)]; }
+function randColor()   { return rand(COLORS); }
+
+// Pick a color that isn't already used by another split group
+function uniqueColor() {
+  const usedColors = new Set(tasks.filter(t => t.color).map(t => t.color));
+  const available  = COLORS.filter(c => !usedColors.has(c));
+  return available.length > 0 ? available[0] : rand(COLORS);
+}
 
 // ── RENDER ──
 function render() {
@@ -91,7 +101,6 @@ function render() {
   const taskCard  = document.getElementById('task-card');
   const emptyCard = document.getElementById('empty-card');
   const emptyDone = document.getElementById('empty-done-msg');
-  const badge     = document.getElementById('task-badge');
   const queueHint = document.getElementById('queue-hint');
   const qaEl      = document.getElementById('quick-actions');
   const stEl      = document.getElementById('subtask-list');
@@ -103,17 +112,8 @@ function render() {
 
     document.getElementById('task-text').textContent = task.text;
 
-    // badge
-    if (task.tags && task.tags.length > 0) {
-      badge.textContent = task.tags.join('  ·  ');
-      badge.style.color = TAG_COLORS[task.tags[0]] || 'var(--accent)';
-    } else {
-      badge.textContent = '';
-    }
-
     // queue hint with nav arrows
-    const rem = active.length - 1;
-    if (rem > 0) {
+    if (active.length > 1) {
       queueHint.style.display = 'flex';
       document.getElementById('queue-label').textContent =
         (currentIndex + 1) + ' of ' + active.length;
@@ -127,10 +127,9 @@ function render() {
     renderSubtasks(task);
 
   } else {
-    taskCard.style.display = 'none';
-    badge.textContent      = '';
-    qaEl.innerHTML         = '';
-    stEl.innerHTML         = '';
+    taskCard.style.display  = 'none';
+    qaEl.innerHTML          = '';
+    stEl.innerHTML          = '';
     queueHint.style.display = 'none';
 
     if (done.length > 0) {
@@ -144,14 +143,41 @@ function render() {
   }
 }
 
-// ── TASK NAVIGATION (prev/next) ──
+// ── TASK NAVIGATION ──
 function navTask(dir) {
   const active = activeTasks();
   currentIndex = Math.max(0, Math.min(active.length - 1, currentIndex + dir));
   save(); render();
 }
 
-// ── QUICK ACTIONS (3 dropdowns) ──
+// ── SWIPE TO NAVIGATE (mobile) ──
+(function() {
+  let touchStartY = 0;
+  let touchStartX = 0;
+  const stage = document.getElementById('app');
+
+  stage.addEventListener('touchstart', e => {
+    // Only track swipes that start on the stage/card area, not on buttons or overlays
+    if (e.target.closest('#quick-actions') || e.target.closest('#subtask-list') ||
+        e.target.closest('#queue-hint') || e.target.closest('#fab')) return;
+    touchStartY = e.touches[0].clientY;
+    touchStartX = e.touches[0].clientX;
+  }, { passive: true });
+
+  stage.addEventListener('touchend', e => {
+    if (e.target.closest('#quick-actions') || e.target.closest('#subtask-list') ||
+        e.target.closest('#queue-hint') || e.target.closest('#fab')) return;
+    const dy = touchStartY - e.changedTouches[0].clientY;
+    const dx = Math.abs(touchStartX - e.changedTouches[0].clientX);
+    // Only trigger if mostly vertical and more than 60px
+    if (Math.abs(dy) > 60 && Math.abs(dy) > dx * 1.5) {
+      if (dy > 0) navTask(1);   // swipe up → next task
+      else        navTask(-1);  // swipe down → prev task
+    }
+  }, { passive: true });
+})();
+
+// ── QUICK ACTIONS (Time · Priority · Split) ──
 function renderQuickActions(task) {
   const el = document.getElementById('quick-actions');
 
@@ -187,21 +213,14 @@ function renderQuickActions(task) {
       </div>
     </div>
 
-    <!-- MORE dropdown (split + delete) -->
-    <div class="qa-dropdown" id="dd-more">
-      <button class="qa-pill skip" onclick="toggleDropdown('dd-more')">More ▾</button>
-      <div class="qa-dropdown-menu" id="dd-more-menu">
-        <button class="qa-menu-item" onclick="openSplitModal()">Split task</button>
-        <div class="qa-menu-sep"></div>
-        <button class="qa-menu-item danger" onclick="deleteCurrentTask()">Delete</button>
-      </div>
-    </div>
+    <!-- SPLIT pill (direct, no dropdown) -->
+    <button class="qa-pill skip" onclick="openSplitModal()">Split ✂</button>
   `;
 }
 
 // dropdown toggle
 function toggleDropdown(id) {
-  const menus = ['dd-time-menu','dd-prio-menu','dd-more-menu'];
+  const menus  = ['dd-time-menu','dd-prio-menu'];
   const menuId = id + '-menu';
   const isOpen = document.getElementById(menuId)?.classList.contains('open');
   menus.forEach(m => document.getElementById(m)?.classList.remove('open'));
@@ -210,14 +229,13 @@ function toggleDropdown(id) {
     document.addEventListener('click', closeDropdownsOutside, { once: true });
   }, 0);
 }
-
 function closeDropdownsOutside(e) {
   if (!e.target.closest('.qa-dropdown') && !e.target.closest('.list-dd')) closeAllDropdowns();
 }
 function closeAllDropdowns() {
-  ['dd-time-menu','dd-prio-menu','dd-more-menu'].forEach(m => {
-    document.getElementById(m)?.classList.remove('open');
-  });
+  ['dd-time-menu','dd-prio-menu'].forEach(m => document.getElementById(m)?.classList.remove('open'));
+  // also close add-screen dropdowns
+  ['add-dd-time-menu','add-dd-prio-menu'].forEach(m => document.getElementById(m)?.classList.remove('open'));
   closeAllListDropdowns();
 }
 
@@ -244,7 +262,7 @@ function closeAllListDropdowns() {
   openListDd = null;
 }
 
-// tag helpers
+// ── TAG HELPERS (main screen) ──
 function setTime(tag) {
   const task = currentTask(); if (!task) return;
   task.tags = (task.tags || []).filter(t => !['5 min','15 min','30 min'].includes(t));
@@ -272,7 +290,6 @@ function clearPrio() {
 function renderSubtasks(task) {
   const el = document.getElementById('subtask-list');
   if (!task.subtasks || task.subtasks.length === 0) { el.innerHTML = ''; return; }
-
   el.innerHTML = task.subtasks.map((st, i) => `
     <div class="subtask-card ${st.done ? 'done' : ''}" onclick="crushSubtask(${i})">
       <div class="subtask-dot" style="background:${task.color || 'var(--accent)'}"></div>
@@ -288,16 +305,19 @@ function handleCardClick() { crushTask(); }
 
 function crushTask() {
   const task = currentTask(); if (!task) return;
-  // Release touch hover on mobile by blurring
-  document.activeElement && document.activeElement.blur();
-  document.getElementById('task-card').classList.remove('touch-active');
+  const card = document.getElementById('task-card');
+  card.classList.remove('touch-active');
+  card.style.pointerEvents = 'none'; // prevent double-tap
 
   task.done = true;
   if (currentIndex >= activeTasks().length) currentIndex = Math.max(0, activeTasks().length - 1);
   save();
   playConfetti();
   showCrushFlash();
-  setTimeout(() => render(), 850);
+  setTimeout(() => {
+    card.style.pointerEvents = '';
+    render();
+  }, 900);
 }
 
 function crushSubtask(idx) {
@@ -361,88 +381,131 @@ function confirmSplit() {
   if (steps.length === 0) return;
 
   const task = currentTask(); if (!task) return;
-  // Ensure split tasks get a unique color different from standalone tasks
-  // If task has no parentId (standalone), assign it a color for the group
-  if (!task.parentId) task.color = task.color || randColor();
-  const color = task.color;
+
+  // Every split gets a unique color — different from all existing groups
+  const color = uniqueColor();
+
+  // The parent task itself gets this color and becomes part of the group
+  task.color    = color;
+  task.parentId = task.parentId || null; // keep existing parentId if it has one
 
   const newTasks = steps.map(text => ({
-    id: Date.now() + Math.random(),
+    id:       Date.now() + Math.random(),
     text,
-    tags: [],
-    done: false,
+    tags:     [],
+    done:     false,
     subtasks: [],
     color,
     parentId: task.id,
-    created: Date.now(),
+    created:  Date.now(),
   }));
 
   const taskIdx = tasks.indexOf(task);
   tasks.splice(taskIdx + 1, 0, ...newTasks);
+
+  // After split, navigate to the first child (the first step)
+  // so it's immediately the focus
+  const newActive = activeTasks();
+  const firstChild = newTasks[0];
+  const firstChildIdx = newActive.indexOf(firstChild);
+  if (firstChildIdx !== -1) currentIndex = firstChildIdx;
 
   save();
   closeSplitModal();
   render();
 }
 
-// ── ADD TASK ──
-function openAddModal() {
-  selectedTags = [];
+// ── ADD TASK SCREEN ──
+function openAddScreen() {
+  addTimeTag = null;
+  addPrioTag = null;
   document.getElementById('add-input').value = '';
-  document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('selected'));
-  document.getElementById('add-modal').classList.remove('hidden');
+  // Reset pill labels
+  document.getElementById('add-time-pill').textContent = 'Time ▾';
+  document.getElementById('add-prio-pill').textContent = 'Priority ▾';
+  document.getElementById('add-time-pill').classList.remove('active');
+  document.getElementById('add-prio-pill').classList.remove('active');
+  // Reset menu selections
+  document.querySelectorAll('#add-dd-time-menu .qa-menu-item, #add-dd-prio-menu .qa-menu-item')
+    .forEach(b => b.classList.remove('selected'));
+  document.getElementById('add-screen').classList.remove('hidden');
   setTimeout(() => document.getElementById('add-input').focus(), 100);
 }
-function closeAddModal() {
-  document.getElementById('add-modal').classList.add('hidden');
+function closeAddScreen() {
+  document.getElementById('add-screen').classList.add('hidden');
+  closeAllDropdowns();
 }
 
-// position: 'top' = add as next task, 'bottom' = add to end
-function submitTask(position = 'bottom') {
+function submitTask() {
   const text = document.getElementById('add-input').value.trim();
   if (!text) { document.getElementById('add-input').focus(); return; }
 
-  const newTask = {
-    id: Date.now(),
-    text,
-    tags: [...selectedTags],
-    done: false,
-    subtasks: [],
-    color: null, // standalone tasks have no color dot
-    created: Date.now(),
-  };
+  const tags = [];
+  if (addTimeTag) tags.push(addTimeTag);
+  if (addPrioTag) tags.push(addPrioTag);
 
-  if (position === 'top') {
-    // Insert at start of active tasks (before first non-done task)
-    const firstActiveIdx = tasks.findIndex(t => !t.done);
-    if (firstActiveIdx === -1) tasks.push(newTask);
-    else tasks.splice(firstActiveIdx, 0, newTask);
-    currentIndex = 0;
-  } else {
-    tasks.push(newTask);
-    if (activeTasks().length === 1) currentIndex = 0;
-  }
+  tasks.push({
+    id:       Date.now(),
+    text,
+    tags,
+    done:     false,
+    subtasks: [],
+    color:    null,
+    created:  Date.now(),
+  });
+  if (activeTasks().length === 1) currentIndex = 0;
 
   save();
-  closeAddModal();
+  closeAddScreen();
   render();
 }
 
-function toggleTag(btn) {
-  const tag = btn.dataset.tag;
-  if (selectedTags.includes(tag)) {
-    selectedTags = selectedTags.filter(t => t !== tag);
-    btn.classList.remove('selected');
-  } else {
-    selectedTags.push(tag);
-    btn.classList.add('selected');
+// Add-screen dropdown toggles
+function toggleAddDropdown(id) {
+  const menus  = ['add-dd-time-menu','add-dd-prio-menu'];
+  const menuId = id + '-menu';
+  const isOpen = document.getElementById(menuId)?.classList.contains('open');
+  menus.forEach(m => document.getElementById(m)?.classList.remove('open'));
+  if (!isOpen) document.getElementById(menuId)?.classList.add('open');
+  setTimeout(() => {
+    document.addEventListener('click', closeAddDropdownsOutside, { once: true });
+  }, 0);
+}
+function closeAddDropdownsOutside(e) {
+  if (!e.target.closest('#add-tag-actions')) {
+    ['add-dd-time-menu','add-dd-prio-menu'].forEach(m =>
+      document.getElementById(m)?.classList.remove('open')
+    );
   }
+}
+
+function addSetTime(tag) {
+  addTimeTag = tag;
+  const pill = document.getElementById('add-time-pill');
+  pill.textContent = tag + ' ▾';
+  pill.classList.add('active');
+  document.querySelectorAll('#add-dd-time-menu .qa-menu-item').forEach(b => {
+    b.classList.toggle('selected', b.textContent === tag);
+  });
+  document.getElementById('add-dd-time-menu').classList.remove('open');
+}
+function addSetPrio(tag) {
+  addPrioTag = tag;
+  const pill = document.getElementById('add-prio-pill');
+  pill.textContent = tag + ' ▾';
+  pill.classList.add('active');
+  document.querySelectorAll('#add-dd-prio-menu .qa-menu-item').forEach(b => {
+    b.classList.toggle('selected', b.textContent === tag);
+  });
+  document.getElementById('add-dd-prio-menu').classList.remove('open');
 }
 
 // ── TASK LIST ──
 function openList() {
   currentSort = 'manual';
-  document.querySelectorAll('.sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === 'manual'));
+  document.querySelectorAll('.sort-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.sort === 'manual')
+  );
   renderList();
   document.getElementById('list-overlay').classList.remove('hidden');
 }
@@ -465,45 +528,37 @@ function setSort(btn, sort) {
 
 function getSortedActiveTasks() {
   const active = tasks.filter(t => !t.done);
-  if (currentSort === 'manual') return active;
   if (currentSort === 'priority') {
     return [...active].sort((a, b) => {
       const pa = (a.tags || []).find(t => t in PRIO_ORDER);
       const pb = (b.tags || []).find(t => t in PRIO_ORDER);
-      const va = pa !== undefined ? PRIO_ORDER[pa] : 99;
-      const vb = pb !== undefined ? PRIO_ORDER[pb] : 99;
-      return va - vb;
+      return (pa !== undefined ? PRIO_ORDER[pa] : 99) - (pb !== undefined ? PRIO_ORDER[pb] : 99);
     });
   }
   if (currentSort === 'time') {
     return [...active].sort((a, b) => {
       const ta = (a.tags || []).find(t => t in TIME_ORDER);
       const tb = (b.tags || []).find(t => t in TIME_ORDER);
-      const va = ta !== undefined ? TIME_ORDER[ta] : 99;
-      const vb = tb !== undefined ? TIME_ORDER[tb] : 99;
-      return va - vb;
+      return (ta !== undefined ? TIME_ORDER[ta] : 99) - (tb !== undefined ? TIME_ORDER[tb] : 99);
     });
   }
-  return active;
+  return active; // manual
 }
 
 function renderList() {
   const isDoneFilter = currentFilter === 'done';
   const isAllFilter  = currentFilter === 'all';
 
-  // Show/hide sort bar — only relevant for active
-  const sortBar = document.getElementById('list-sort');
-  sortBar.style.display = isDoneFilter ? 'none' : 'flex';
+  document.getElementById('list-sort').style.display = isDoneFilter ? 'none' : 'flex';
 
-  // Show/hide clear done button
-  const clearDoneBtn = document.getElementById('clear-done-btn');
   const doneTasks = tasks.filter(t => t.done);
-  clearDoneBtn.style.display = (isDoneFilter || isAllFilter) && doneTasks.length > 0 ? 'block' : 'none';
+  const clearBtn  = document.getElementById('clear-done-btn');
+  clearBtn.style.display = (isDoneFilter || isAllFilter) && doneTasks.length > 0 ? 'block' : 'none';
 
   let items;
-  if (isDoneFilter) items = doneTasks;
+  if (isDoneFilter)     items = doneTasks;
   else if (isAllFilter) items = [...getSortedActiveTasks(), ...doneTasks];
-  else items = getSortedActiveTasks();
+  else                  items = getSortedActiveTasks();
 
   const el = document.getElementById('list-items');
   if (items.length === 0) {
@@ -513,41 +568,32 @@ function renderList() {
 
   const timeOpts = ['5 min','15 min','30 min'];
   const prioOpts = ['Urgent','Easy','Fun'];
-
-  // Build a set of task IDs that have split children (to decide dot visibility)
   const splitParentIds = new Set(tasks.filter(t => t.parentId).map(t => t.parentId));
 
-  el.innerHTML = items.map((task) => {
-    const realIdx = tasks.indexOf(task);
-    const cls     = task.done ? 'done' : '';
-
-    // Color dot: show only if task has a parentId (is a split child) OR is a split parent
-    const hasDot = task.parentId || splitParentIds.has(task.id);
+  el.innerHTML = items.map(task => {
+    const realIdx  = tasks.indexOf(task);
+    const hasDot   = task.parentId || splitParentIds.has(task.id);
     const dotColor = task.color || 'var(--accent)';
-
-    const timeTag = (task.tags || []).find(t => timeOpts.includes(t));
-    const prioTag = (task.tags || []).find(t => prioOpts.includes(t));
-    const ddId    = `list-dd-${realIdx}`;
-
-    // Is this task currently active on main screen?
-    const activeTsk = currentTask();
-    const isCurrent = !task.done && activeTsk && task.id === activeTsk.id;
+    const timeTag  = (task.tags || []).find(t => timeOpts.includes(t));
+    const prioTag  = (task.tags || []).find(t => prioOpts.includes(t));
+    const ddId     = `list-dd-${realIdx}`;
+    const isCurrent = !task.done && currentTask() && task.id === currentTask().id;
 
     if (task.done) {
       return `
-        <div class="list-item ${cls}" draggable="false">
+        <div class="list-item done">
           <div class="list-item-dot ${hasDot ? '' : 'invisible'}" style="background:${dotColor}"></div>
           <div class="list-item-body">
             <div class="list-item-text">${esc(task.text)}</div>
           </div>
           <div class="list-item-actions">
-            <button class="list-icon-btn del" onclick="listDelete(${realIdx},event)">Delete</button>
+            <button class="list-action-btn del" onclick="listDelete(${realIdx},event)" title="Delete">✕</button>
           </div>
         </div>`;
     }
 
     return `
-      <div class="list-item ${cls} ${isCurrent ? 'is-current' : ''}"
+      <div class="list-item ${isCurrent ? 'is-current' : ''}"
            draggable="${currentSort === 'manual' ? 'true' : 'false'}"
            data-idx="${realIdx}"
            onclick="listSelectTask(${realIdx})"
@@ -560,10 +606,10 @@ function renderList() {
         <div class="list-item-body">
           <div class="list-item-text">${esc(task.text)}</div>
           <div class="list-item-row2">
-            <!-- Time pill dropdown -->
+            <!-- Time dropdown -->
             <div class="list-dd" onclick="event.stopPropagation()">
               <button class="list-tag-btn ${timeTag ? 'active-tag' : ''}"
-                onclick="toggleListDd('${ddId}-time', event)">
+                onclick="toggleListDd('${ddId}-time',event)">
                 ${timeTag || 'Time'} ▾
               </button>
               <div class="list-dd-menu" id="${ddId}-time">
@@ -575,10 +621,10 @@ function renderList() {
                   <button class="qa-menu-item" onclick="listClearTag(${realIdx},'time',event)">Clear</button>` : ''}
               </div>
             </div>
-            <!-- Priority pill dropdown -->
+            <!-- Priority dropdown -->
             <div class="list-dd" onclick="event.stopPropagation()">
               <button class="list-tag-btn ${prioTag ? 'active-tag' : ''}"
-                onclick="toggleListDd('${ddId}-prio', event)">
+                onclick="toggleListDd('${ddId}-prio',event)">
                 ${prioTag || 'Priority'} ▾
               </button>
               <div class="list-dd-menu" id="${ddId}-prio">
@@ -592,34 +638,22 @@ function renderList() {
             </div>
           </div>
         </div>
-        <!-- Actions dropdown -->
         <div class="list-item-actions" onclick="event.stopPropagation()">
-          <div class="list-dd">
-            <button class="list-icon-btn" onclick="toggleListDd('${ddId}-act', event)">⋯</button>
-            <div class="list-dd-menu" id="${ddId}-act">
-              <button class="qa-menu-item crush" onclick="listCrush(${realIdx},event)">✊ Crush</button>
-              <div class="qa-menu-sep"></div>
-              <button class="qa-menu-item danger" onclick="listDelete(${realIdx},event)">Delete</button>
-            </div>
-          </div>
+          <button class="list-action-btn crush" onclick="listCrush(${realIdx},event)" title="Crush">✓</button>
+          <button class="list-action-btn del"   onclick="listDelete(${realIdx},event)" title="Delete">✕</button>
         </div>
       </div>`;
   }).join('');
 }
 
-// ── SELECT TASK FROM LIST ──
 function listSelectTask(realIdx) {
   const task = tasks[realIdx];
   if (!task || task.done) return;
-  const active = activeTasks();
-  const newIdx = active.indexOf(task);
+  const newIdx = activeTasks().indexOf(task);
   if (newIdx === -1) return;
   currentIndex = newIdx;
-  save();
-  closeList();
-  render();
+  save(); closeList(); render();
 }
-
 function listCrush(idx, event) {
   event && event.stopPropagation();
   tasks[idx].done = true;
@@ -632,7 +666,6 @@ function listDelete(idx, event) {
   if (currentIndex >= activeTasks().length) currentIndex = Math.max(0, activeTasks().length - 1);
   save(); closeAllListDropdowns(); renderList(); render();
 }
-
 function clearAllDone() {
   if (!confirm('Clear all completed tasks?')) return;
   tasks = tasks.filter(t => !t.done);
@@ -659,7 +692,7 @@ function listClearTag(idx, type, event) {
   save(); closeAllListDropdowns(); renderList(); render();
 }
 
-// ── DRAG & DROP ──
+// ── DRAG & DROP (desktop) ──
 function onDragStart(event, idx) {
   dragSrcIdx = idx;
   event.dataTransfer.effectAllowed = 'move';
@@ -668,7 +701,6 @@ function onDragStart(event, idx) {
 function onDragOver(event) {
   event.preventDefault();
   event.dataTransfer.dropEffect = 'move';
-  // highlight drop target
   document.querySelectorAll('.list-item').forEach(el => el.classList.remove('drag-over'));
   event.currentTarget.closest('.list-item')?.classList.add('drag-over');
 }
@@ -676,23 +708,15 @@ function onDrop(event, targetIdx) {
   event.preventDefault();
   document.querySelectorAll('.list-item').forEach(el => el.classList.remove('drag-over'));
   if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
-
-  // Only reorder among active tasks (done tasks are not draggable)
-  const src  = tasks[dragSrcIdx];
-  const tgt  = tasks[targetIdx];
+  const src = tasks[dragSrcIdx];
+  const tgt = tasks[targetIdx];
   if (!src || !tgt || src.done || tgt.done) return;
-
-  // Remove src from array, insert before/after target
   tasks.splice(dragSrcIdx, 1);
-  const newTargetIdx = tasks.indexOf(tgt);
-  tasks.splice(newTargetIdx, 0, src);
-
-  // Update currentIndex to follow the currently-displayed task
-  const active = activeTasks();
-  const currentTask_ = activeTasks()[currentIndex] || activeTasks()[0];
-  currentIndex = currentTask_ ? active.indexOf(currentTask_) : 0;
+  const newTgtIdx = tasks.indexOf(tgt);
+  tasks.splice(newTgtIdx, 0, src);
+  const curTask = activeTasks()[currentIndex] || activeTasks()[0];
+  currentIndex = curTask ? activeTasks().indexOf(curTask) : 0;
   if (currentIndex < 0) currentIndex = 0;
-
   dragSrcIdx = null;
   save(); renderList(); render();
 }
@@ -702,13 +726,92 @@ function onDragEnd(event) {
   dragSrcIdx = null;
 }
 
+// ── TOUCH DRAG & DROP (mobile) ──
+(function() {
+  let touchDragIdx  = null;
+  let ghostEl       = null;
+  let lastOverEl    = null;
+
+  function getListItemFromPoint(x, y) {
+    const els = document.elementsFromPoint(x, y);
+    for (const el of els) {
+      const item = el.closest?.('.list-item');
+      if (item && !item.classList.contains('dragging')) return item;
+    }
+    return null;
+  }
+
+  document.addEventListener('touchstart', e => {
+    const handle = e.target.closest('.drag-handle');
+    if (!handle) return;
+    e.preventDefault();
+    const row = handle.closest('.list-item');
+    if (!row) return;
+    touchDragIdx = parseInt(row.dataset.idx, 10);
+    row.classList.add('dragging');
+
+    // Create ghost
+    ghostEl = row.cloneNode(true);
+    ghostEl.style.cssText = `
+      position:fixed; left:${row.getBoundingClientRect().left}px;
+      top:${row.getBoundingClientRect().top}px;
+      width:${row.offsetWidth}px; opacity:0.85; pointer-events:none;
+      z-index:9999; background:var(--surface);
+      border-radius:var(--radius-sm); box-shadow:0 8px 32px rgba(0,0,0,0.18);
+      transform:scale(1.02);
+    `;
+    document.body.appendChild(ghostEl);
+  }, { passive: false });
+
+  document.addEventListener('touchmove', e => {
+    if (touchDragIdx === null || !ghostEl) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    ghostEl.style.top  = (touch.clientY - 24) + 'px';
+    ghostEl.style.left = (touch.clientX - ghostEl.offsetWidth / 2) + 'px';
+
+    // Highlight drop target
+    const over = getListItemFromPoint(touch.clientX, touch.clientY);
+    if (lastOverEl && lastOverEl !== over) lastOverEl.classList.remove('drag-over');
+    if (over) { over.classList.add('drag-over'); lastOverEl = over; }
+  }, { passive: false });
+
+  document.addEventListener('touchend', e => {
+    if (touchDragIdx === null) return;
+    const touch = e.changedTouches[0];
+
+    // Clean up ghost
+    if (ghostEl) { ghostEl.remove(); ghostEl = null; }
+    if (lastOverEl) { lastOverEl.classList.remove('drag-over'); lastOverEl = null; }
+    document.querySelectorAll('.list-item.dragging').forEach(el => el.classList.remove('dragging'));
+
+    // Find drop target
+    const over = getListItemFromPoint(touch.clientX, touch.clientY);
+    const targetIdx = over ? parseInt(over.dataset.idx, 10) : null;
+
+    if (targetIdx !== null && touchDragIdx !== targetIdx) {
+      const src = tasks[touchDragIdx];
+      const tgt = tasks[targetIdx];
+      if (src && tgt && !src.done && !tgt.done) {
+        tasks.splice(touchDragIdx, 1);
+        const newTgtIdx = tasks.indexOf(tgt);
+        tasks.splice(newTgtIdx, 0, src);
+        const curTask = activeTasks()[currentIndex] || activeTasks()[0];
+        currentIndex = curTask ? activeTasks().indexOf(curTask) : 0;
+        if (currentIndex < 0) currentIndex = 0;
+        save(); renderList(); render();
+      }
+    }
+    touchDragIdx = null;
+  }, { passive: true });
+})();
+
 // ── CONFETTI ──
 function playConfetti(mini = false) {
   const canvas = document.getElementById('confetti-canvas');
   const ctx    = canvas.getContext('2d');
   canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
-
   const count  = mini ? 50 : 150;
   const colors = ['#5c47f5','#f59e0b','#e53935','#0ea5e9','#16a34a','#9333ea'];
   const pieces = Array.from({ length: count }, () => ({
@@ -723,7 +826,6 @@ function playConfetti(mini = false) {
     rotV: (Math.random() - 0.5) * 9,
     opacity: 1,
   }));
-
   (function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     let alive = false;
@@ -749,7 +851,7 @@ function playConfetti(mini = false) {
 function showCrushFlash() {
   const flash = document.getElementById('crush-flash');
   const text  = document.getElementById('crush-flash-text');
-  text.textContent = rand(CRUSH_WORDS);
+  text.textContent       = rand(CRUSH_WORDS);
   flash.style.transition = 'opacity 0.12s';
   flash.style.opacity    = '1';
   text.style.transform   = 'scale(1)';
@@ -766,41 +868,38 @@ function showCrushFlash() {
 (function() {
   const card = document.getElementById('task-card');
   card.addEventListener('touchstart', () => card.classList.add('touch-active'), { passive: true });
-  card.addEventListener('touchend', () => {
-    setTimeout(() => card.classList.remove('touch-active'), 900);
-  });
+  card.addEventListener('touchend',   () => setTimeout(() => card.classList.remove('touch-active'), 900));
+  card.addEventListener('touchcancel',() => card.classList.remove('touch-active'));
 })();
 
 // ── KEYBOARD ──
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    closeAddModal(); closeList(); closeSplitModal(); closeAllDropdowns();
+    closeAddScreen(); closeList(); closeSplitModal(); closeAllDropdowns();
   }
   if (e.key === 'Enter' && !e.shiftKey) {
-    if (!document.getElementById('add-modal').classList.contains('hidden') &&
+    const addScreen = document.getElementById('add-screen');
+    if (!addScreen.classList.contains('hidden') &&
         document.activeElement !== document.getElementById('add-input')) {
-      submitTask('bottom');
+      submitTask();
     }
   }
-  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-    if (document.getElementById('add-modal').classList.contains('hidden') &&
-        document.getElementById('list-overlay').classList.contains('hidden')) {
-      navTask(1);
-    }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+    if (document.getElementById('add-screen').classList.contains('hidden') &&
+        document.getElementById('list-overlay').classList.contains('hidden')) navTask(1);
   }
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-    if (document.getElementById('add-modal').classList.contains('hidden') &&
-        document.getElementById('list-overlay').classList.contains('hidden')) {
-      navTask(-1);
-    }
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+    if (document.getElementById('add-screen').classList.contains('hidden') &&
+        document.getElementById('list-overlay').classList.contains('hidden')) navTask(-1);
   }
 });
 
 // close overlays on backdrop click
-['list-overlay','add-modal','split-modal'].forEach(id => {
-  document.getElementById(id).addEventListener('click', function(e) {
-    if (e.target === this) this.classList.add('hidden');
-  });
+document.getElementById('list-overlay').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.add('hidden');
+});
+document.getElementById('split-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.add('hidden');
 });
 
 // close dropdowns when clicking outside
@@ -816,7 +915,7 @@ document.addEventListener('click', e => {
     icons:[{ src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23f5f5f0'/><text y='.9em' font-size='76' x='12'>✊</text></svg>", sizes:'192x192', type:'image/svg+xml' }]
   };
   const link = document.createElement('link');
-  link.rel = 'manifest';
+  link.rel  = 'manifest';
   link.href = URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/json'}));
   document.head.appendChild(link);
 })();

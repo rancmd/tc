@@ -87,18 +87,6 @@ html, body {
   padding: 24px 24px 90px;
 }
 
-/* ── BADGE ── */
-#task-badge {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 16px;
-  min-height: 16px;
-  text-align: center;
-}
-
 /* ── TASK CARD ── */
 #task-card {
   width: 100%;
@@ -113,11 +101,9 @@ html, body {
   display: none;
   text-align: center;
   box-shadow: 0 2px 16px rgba(0,0,0,0.06);
-  /* prevent text selection on click */
   user-select: none;
   -webkit-user-select: none;
 }
-
 #task-card:hover,
 #task-card.touch-active {
   background: var(--crush-bg);
@@ -294,7 +280,6 @@ html, body {
   color: var(--text-mid);
   transition: opacity 0.18s;
 }
-
 .subtask-crush-hint {
   position: absolute;
   inset: 0;
@@ -307,7 +292,6 @@ html, body {
   opacity: 0;
   transition: opacity 0.18s;
 }
-
 .subtask-del {
   background: none;
   border: 1.5px solid var(--border);
@@ -334,7 +318,6 @@ html, body {
   align-items: center;
   gap: 14px;
 }
-
 .nav-btn {
   background: var(--surface);
   border: 1.5px solid var(--border);
@@ -353,7 +336,6 @@ html, body {
 }
 .nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .nav-btn:disabled { opacity: 0.3; cursor: default; }
-
 #queue-label {
   font-size: 13px;
   font-weight: 500;
@@ -401,7 +383,6 @@ html, body {
 .hidden { display: none !important; }
 
 #list-overlay,
-#add-modal,
 #split-modal {
   position: fixed;
   inset: 0;
@@ -413,10 +394,134 @@ html, body {
   justify-content: center;
   animation: fadeIn 0.2s ease;
 }
-#add-modal { align-items: center; }
 
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeInFast { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── ADD TASK SCREEN — full frame overlay, same look as main app ── */
+#add-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeInFast 0.15s ease;
+}
+
+#add-top-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26px 28px 0;
+  flex-shrink: 0;
+}
+#add-logo {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  user-select: none;
+}
+#add-logo span { color: var(--accent); }
+
+#add-screen-close {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  width: 40px; height: 40px;
+  font-size: 17px;
+  color: var(--text-mid);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  font-family: var(--font);
+}
+#add-screen-close:hover { color: var(--text); border-color: var(--border2); }
+
+#add-stage {
+  flex: 1;
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 24px 90px;
+}
+
+/* Input row — mirrors task card pill shape */
+#add-input-wrap {
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+#add-input {
+  flex: 1;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 28px 72px 28px 40px; /* right padding makes room for ✓ button */
+  font-family: var(--font);
+  font-size: clamp(18px, 3.5vw, 26px);
+  font-weight: 500;
+  color: var(--text);
+  outline: none;
+  resize: none;
+  line-height: 1.4;
+  caret-color: var(--accent);
+  transition: border-color 0.18s, box-shadow 0.18s;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+  min-height: 100px;
+}
+#add-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 4px 24px rgba(92,71,245,0.12);
+}
+#add-input::placeholder { color: var(--text-dim); }
+
+/* ✓ submit button — floats inside the pill on the right */
+#add-submit-btn {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  color: #ffffff;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.1s;
+  font-family: var(--font);
+  line-height: 1;
+  flex-shrink: 0;
+}
+#add-submit-btn:hover { background: #4836d4; }
+#add-submit-btn:active { transform: translateY(-50%) scale(0.92); }
+
+/* Tag dropdowns below input — same layout as quick-actions */
+#add-tag-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+  position: relative;
+}
 
 /* ── TASK LIST — full screen ── */
 #list-panel {
@@ -506,10 +611,7 @@ html, body {
 .sort-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
 /* Clear done */
-#clear-done-wrap {
-  padding: 10px 28px 0;
-  flex-shrink: 0;
-}
+#clear-done-wrap { padding: 10px 28px 0; flex-shrink: 0; }
 #clear-done-btn {
   background: none;
   border: 1.5px solid var(--border);
@@ -560,7 +662,7 @@ html, body {
 
 /* Drag states */
 .list-item.dragging { opacity: 0.4; }
-.list-item.drag-over { background: var(--accent-dim); border-color: var(--accent); }
+.list-item.drag-over { background: var(--accent-dim); }
 
 .drag-handle {
   color: var(--text-dim);
@@ -599,14 +701,12 @@ html, body {
 }
 .list-item.done .list-item-text { text-decoration: line-through; color: var(--text-mid); }
 
-/* Row 2 — tag dropdowns sit below the text */
+/* Row 2 — tag dropdowns below text */
 .list-item-row2 {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
 }
-
-/* List tag buttons (smaller than main pills) */
 .list-tag-btn {
   background: var(--surface2);
   border: 1.5px solid var(--border);
@@ -623,14 +723,13 @@ html, body {
 .list-tag-btn:hover { border-color: var(--border2); color: var(--text-mid); }
 .list-tag-btn.active-tag { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
-/* List row actions */
+/* List row actions — ✓ and ✕ icon buttons */
 .list-item-actions {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
   align-self: flex-start;
 }
-
 .list-dd { position: relative; }
 .list-dd-menu {
   position: absolute;
@@ -649,6 +748,26 @@ html, body {
 }
 .list-dd-menu.open { display: flex; }
 
+/* Icon action buttons — ✓ crush and ✕ delete */
+.list-action-btn {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  width: 32px; height: 32px;
+  font-size: 14px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.list-action-btn.crush:hover { border-color: var(--green); color: var(--green); background: rgba(22,163,74,0.07); }
+.list-action-btn.del:hover   { border-color: var(--danger); color: var(--danger); background: rgba(229,57,53,0.07); }
+
 .list-icon-btn {
   background: none;
   border: 1.5px solid var(--border);
@@ -663,125 +782,6 @@ html, body {
 }
 .list-icon-btn:hover { border-color: var(--border2); color: var(--text-mid); }
 .list-icon-btn.del:hover { border-color: var(--danger); color: var(--danger); }
-
-/* ── ADD TASK MODAL ── */
-#add-panel {
-  width: 100%;
-  max-width: 560px;
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 40px 36px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  animation: slideUp 0.25s ease;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.15);
-  margin: 0 20px;
-}
-#add-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-#add-title { font-size: 20px; font-weight: 700; }
-#add-close {
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: 50%;
-  width: 38px; height: 38px;
-  font-size: 16px;
-  color: var(--text-mid);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-  font-family: var(--font);
-}
-#add-close:hover { color: var(--text); border-color: var(--border2); }
-
-#add-input {
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 20px 22px;
-  font-family: var(--font);
-  font-size: 20px;
-  font-weight: 500;
-  color: var(--text);
-  outline: none;
-  resize: none;
-  line-height: 1.5;
-  caret-color: var(--accent);
-  transition: border-color 0.2s;
-  width: 100%;
-  min-height: 100px;
-}
-#add-input:focus { border-color: var(--accent); background: var(--surface); }
-#add-input::placeholder { color: var(--text-dim); }
-
-#add-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.tag-btn {
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: 8px 16px;
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-mid);
-  cursor: pointer;
-  transition: all 0.15s;
-  user-select: none;
-}
-.tag-btn:hover { border-color: var(--border2); color: var(--text); }
-.tag-btn.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
-
-/* Two-button submit row */
-#add-submit-wrap {
-  display: flex;
-  gap: 10px;
-}
-.add-btn-primary {
-  flex: 1;
-  background: var(--accent);
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 15px 24px;
-  font-family: var(--font);
-  font-size: 15px;
-  font-weight: 700;
-  color: #ffffff;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.add-btn-primary:hover { background: #4836d4; }
-.add-btn-primary:active { transform: scale(0.98); }
-.add-btn-arrow { font-size: 17px; font-weight: 400; opacity: 0.7; }
-
-.add-btn-secondary {
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: 15px 20px;
-  font-family: var(--font);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-mid);
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.add-btn-secondary:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-.add-btn-secondary:active { transform: scale(0.98); }
 
 /* ── SPLIT MODAL ── */
 #split-panel {
@@ -902,17 +902,16 @@ html, body {
 
 /* ── RESPONSIVE ── */
 @media (max-width: 500px) {
-  #top-bar { padding: 20px 18px 0; }
-  #stage { padding: 20px 16px 90px; }
+  #top-bar, #add-top-bar { padding: 20px 18px 0; }
+  #stage, #add-stage { padding: 20px 16px 90px; }
   #task-card { padding: 30px 28px; }
+  #add-input { padding: 22px 64px 22px 28px; }
   #fab { bottom: 24px; right: 20px; width: 58px; height: 58px; font-size: 28px; }
   #list-header { padding: 22px 18px 0; }
   #list-filters { padding: 14px 18px 0; }
   #list-sort { padding: 10px 18px 0; }
   #clear-done-wrap { padding: 8px 18px 0; }
   #list-items { padding: 6px 10px 28px; }
-  #add-panel { margin: 0 12px; padding: 28px 20px 32px; }
-  .add-btn-secondary { padding: 15px 14px; font-size: 13px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

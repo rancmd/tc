@@ -50,8 +50,6 @@
     </div>
 
     <div id="stage">
-      <div id="task-badge"></div>
-
       <!-- Task card — click to crush -->
       <div id="task-card" onclick="handleCardClick()">
         <div id="task-text"></div>
@@ -63,7 +61,7 @@
         <div id="empty-prompt"></div>
       </div>
 
-      <!-- Quick actions: 3 dropdowns -->
+      <!-- Quick actions: dropdowns -->
       <div id="quick-actions"></div>
 
       <!-- Subtasks -->
@@ -80,34 +78,45 @@
     </div>
 
     <!-- FAB -->
-    <button id="fab" onclick="openAddModal()" title="Add task">+</button>
+    <button id="fab" onclick="openAddScreen()" title="Add task">+</button>
   </div>
 
-  <!-- ── ADD TASK MODAL — full screen centered ── -->
-  <div id="add-modal" class="hidden">
-    <div id="add-panel">
-      <div id="add-header">
-        <div id="add-title">New Task</div>
-        <button id="add-close" onclick="closeAddModal()">✕</button>
+  <!-- ── ADD TASK SCREEN — full frame, overlays the app ── -->
+  <div id="add-screen" class="hidden">
+    <div id="add-top-bar">
+      <div id="add-logo">TASK <span>CRUSHER</span></div>
+      <button id="add-screen-close" onclick="closeAddScreen()">✕</button>
+    </div>
+    <div id="add-stage">
+      <!-- Input styled like the task card area -->
+      <div id="add-input-wrap">
+        <textarea id="add-input" placeholder="What needs to be done?" rows="3"></textarea>
+        <button id="add-submit-btn" onclick="submitTask()" title="Add task">✓</button>
       </div>
-      <textarea id="add-input" placeholder="What needs to be done?" rows="3"></textarea>
-      <div id="add-tags">
-        <button class="tag-btn" data-tag="5 min" onclick="toggleTag(this)">5 min</button>
-        <button class="tag-btn" data-tag="15 min" onclick="toggleTag(this)">15 min</button>
-        <button class="tag-btn" data-tag="30 min" onclick="toggleTag(this)">30 min</button>
-        <button class="tag-btn" data-tag="Urgent" onclick="toggleTag(this)">Urgent</button>
-        <button class="tag-btn" data-tag="Easy" onclick="toggleTag(this)">Easy</button>
-        <button class="tag-btn" data-tag="Fun" onclick="toggleTag(this)">Fun</button>
-      </div>
-      <!-- Split add button: two options -->
-      <div id="add-submit-wrap">
-        <button class="add-btn-primary" onclick="submitTask('bottom')">
-          Add to queue
-          <span class="add-btn-arrow">↵</span>
-        </button>
-        <button class="add-btn-secondary" onclick="submitTask('top')">
-          Do next ↑
-        </button>
+      <!-- Tag dropdowns below — same layout as quick actions -->
+      <div id="add-tag-actions">
+        <!-- Time dropdown -->
+        <div class="qa-dropdown" id="add-dd-time">
+          <button class="qa-pill" id="add-time-pill" onclick="toggleAddDropdown('add-dd-time')">
+            Time ▾
+          </button>
+          <div class="qa-dropdown-menu" id="add-dd-time-menu">
+            <button class="qa-menu-item" onclick="addSetTime('5 min')">5 min</button>
+            <button class="qa-menu-item" onclick="addSetTime('15 min')">15 min</button>
+            <button class="qa-menu-item" onclick="addSetTime('30 min')">30 min</button>
+          </div>
+        </div>
+        <!-- Priority dropdown -->
+        <div class="qa-dropdown" id="add-dd-prio">
+          <button class="qa-pill" id="add-prio-pill" onclick="toggleAddDropdown('add-dd-prio')">
+            Priority ▾
+          </button>
+          <div class="qa-dropdown-menu" id="add-dd-prio-menu">
+            <button class="qa-menu-item" onclick="addSetPrio('Urgent')">Urgent</button>
+            <button class="qa-menu-item" onclick="addSetPrio('Easy')">Easy</button>
+            <button class="qa-menu-item" onclick="addSetPrio('Fun')">Fun</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
