@@ -15,7 +15,7 @@
   <canvas id="confetti-canvas"></canvas>
   <div id="crush-flash"><div id="crush-flash-text"></div></div>
 
-  <!-- ── TASK LIST OVERLAY (full screen) ── -->
+  <!-- ── TASK LIST OVERLAY ── -->
   <div id="list-overlay" class="hidden">
     <div id="list-panel">
       <div id="list-header">
@@ -27,20 +27,17 @@
         <button class="filter-btn" data-filter="done" onclick="setFilter(this,'done')">Done</button>
         <button class="filter-btn" data-filter="all" onclick="setFilter(this,'all')">All</button>
       </div>
-      <!-- Sort bar (active only) -->
       <div id="list-sort">
         <span class="sort-label">Sort:</span>
         <button class="sort-btn active" data-sort="manual" onclick="setSort(this,'manual')">Manual</button>
         <button class="sort-btn" data-sort="priority" onclick="setSort(this,'priority')">Priority</button>
         <button class="sort-btn" data-sort="time" onclick="setSort(this,'time')">Time</button>
       </div>
-      <!-- Clear done button -->
       <div id="clear-done-wrap">
         <button id="clear-done-btn" onclick="clearAllDone()" style="display:none">Clear completed</button>
       </div>
       <div id="list-items"></div>
     </div>
-    <!-- FAB inside list overlay -->
     <button id="list-fab" onclick="closeList();openAddScreen();" title="Add task">+</button>
   </div>
 
@@ -52,72 +49,57 @@
     </div>
 
     <div id="stage">
-      <!-- Card stack viewport -->
-      <div id="card-stack">
-        <!-- Task card — click to crush -->
+
+      <!-- Full-screen gallery card viewport -->
+      <div id="card-viewport">
         <div id="task-card" onclick="handleCardClick()">
           <div id="task-text"></div>
         </div>
-        <!-- Ghost card behind (next task preview) -->
-        <div id="task-card-ghost"></div>
       </div>
 
-      <!-- Empty state -->
+      <!-- Empty states (outside viewport, not sliding) -->
       <div id="empty-card">
         <div id="empty-prompt"></div>
       </div>
+      <div id="empty-done-msg">🎉 <strong>Queue empty.</strong> You crushed everything.</div>
 
-      <!-- Quick actions: icon pills -->
-      <div id="quick-actions"></div>
-
-      <!-- Subtasks -->
-      <div id="subtask-list"></div>
-
-      <!-- Queue label (no arrows) -->
-      <div id="queue-hint">
-        <span id="queue-label"></span>
+      <!-- Everything below card: actions, subtasks, dots -->
+      <div id="bottom-dock">
+        <div id="quick-actions"></div>
+        <div id="subtask-list"></div>
+        <div id="queue-hint">
+          <div id="queue-dots"></div>
+        </div>
       </div>
 
-      <div id="empty-done-msg">🎉 <strong>Queue empty.</strong> You crushed everything.</div>
     </div>
 
-    <!-- Version -->
-    <div id="version-label">v6</div>
-
-    <!-- FAB -->
+    <div id="version-label">v6b</div>
     <button id="fab" onclick="openAddScreen()" title="Add task">+</button>
   </div>
 
-  <!-- ── ADD TASK SCREEN — full frame, overlays the app ── -->
+  <!-- ── ADD TASK SCREEN ── -->
   <div id="add-screen" class="hidden">
     <div id="add-top-bar">
       <div id="add-logo">TASK <span>CRUSHER</span></div>
       <button id="add-screen-close" onclick="closeAddScreen()">✕</button>
     </div>
     <div id="add-stage">
-      <!-- Input styled like the task card area -->
       <div id="add-input-wrap">
         <input type="text" id="add-input" placeholder="What needs to be done?" maxlength="200" />
         <button id="add-submit-btn" onclick="submitTask()" title="Add task">✓</button>
       </div>
-      <!-- Tag dropdowns below — same layout as quick actions -->
       <div id="add-tag-actions">
-        <!-- Time dropdown -->
         <div class="qa-dropdown" id="add-dd-time">
-          <button class="qa-pill" id="add-time-pill" onclick="toggleAddDropdown('add-dd-time')">
-            🕐
-          </button>
+          <button class="qa-pill" id="add-time-pill" onclick="toggleAddDropdown('add-dd-time')">🕐</button>
           <div class="qa-dropdown-menu" id="add-dd-time-menu">
             <button class="qa-menu-item" onclick="addSetTime('5 min')">5 min</button>
             <button class="qa-menu-item" onclick="addSetTime('15 min')">15 min</button>
             <button class="qa-menu-item" onclick="addSetTime('30 min')">30 min</button>
           </div>
         </div>
-        <!-- Priority dropdown -->
         <div class="qa-dropdown" id="add-dd-prio">
-          <button class="qa-pill" id="add-prio-pill" onclick="toggleAddDropdown('add-dd-prio')">
-            🔥
-          </button>
+          <button class="qa-pill" id="add-prio-pill" onclick="toggleAddDropdown('add-dd-prio')">🔥</button>
           <div class="qa-dropdown-menu" id="add-dd-prio-menu">
             <button class="qa-menu-item" onclick="addSetPrio('Urgent')">Urgent</button>
             <button class="qa-menu-item" onclick="addSetPrio('Easy')">Easy</button>

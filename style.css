@@ -31,13 +31,14 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── LAYOUT ── */
+/* ── APP LAYOUT ── */
 #app {
   height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
+  overflow: hidden;
 }
 
 /* ── TOP BAR ── */
@@ -48,6 +49,8 @@ html, body {
   justify-content: space-between;
   padding: 26px 28px 0;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 
 #logo {
@@ -89,7 +92,9 @@ html, body {
   opacity: 0.5;
 }
 
-/* ── STAGE ── */
+/* ══════════════════════════════════════
+   STAGE — full-screen gallery viewport
+   ══════════════════════════════════════ */
 #stage {
   flex: 1;
   width: 100%;
@@ -97,32 +102,26 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px 24px 90px;
-}
-
-/* ── CARD STACK ── */
-#card-stack {
-  width: 100%;
+  /* No justify-content:center — card sits at top of scroll area */
   position: relative;
-  display: none; /* shown via JS when task exists */
+  overflow: hidden;          /* clips the sliding card */
+  padding: 0 24px 0;
 }
 
-/* Ghost card behind — simulates next card in stack */
-#task-card-ghost {
-  position: absolute;
-  bottom: -10px;
-  left: 6px;
-  right: 6px;
-  height: 100%;
-  background: var(--surface2);
-  border: 2px solid var(--border);
-  border-radius: var(--radius-pill);
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.6;
-  transform: scale(0.97);
-  display: none;
+/* ── GALLERY CARD AREA ──
+   Takes up roughly the top half of stage; card slides within this viewport */
+#card-viewport {
+  width: 100%;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  /* height set dynamically, but min enough for the card */
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* push down a bit from top bar */
+  margin-top: 32px;
 }
 
 /* ── TASK CARD ── */
@@ -134,47 +133,52 @@ html, body {
   padding: 40px 48px;
   cursor: pointer;
   position: relative;
-  overflow: hidden;
-  z-index: 1;
   text-align: center;
   box-shadow: 0 2px 16px rgba(0,0,0,0.06);
   user-select: none;
   -webkit-user-select: none;
-  /* Slide animation state */
-  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.22s, box-shadow 0.18s;
+  /* will-change for smooth GPU compositing */
+  will-change: transform, opacity;
+  /* default transition (spring back on failed swipe) */
+  transition: transform 0.35s cubic-bezier(0.4,0,0.2,1),
+              opacity   0.35s cubic-bezier(0.4,0,0.2,1),
+              box-shadow 0.18s;
 }
 
-#task-card:active {
-  transform: scale(0.98);
-  box-shadow: 0 1px 8px rgba(0,0,0,0.08);
+/* While finger is dragging — disable transition so card follows finger instantly */
+#task-card.dragging {
+  transition: none !important;
 }
 
-/* Slide-out animations */
-#task-card.slide-up {
-  transform: translateY(-120%) scale(0.92) !important;
+/* Full-screen slide-out  */
+#task-card.exit-up {
+  transform: translateY(-110vh) !important;
   opacity: 0 !important;
-  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s !important;
+  transition: transform 0.32s cubic-bezier(0.4,0,0.2,1),
+              opacity   0.28s !important;
 }
-#task-card.slide-down {
-  transform: translateY(120%) scale(0.92) !important;
+#task-card.exit-down {
+  transform: translateY(110vh) !important;
   opacity: 0 !important;
-  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s !important;
-}
-/* Incoming slide animation */
-#task-card.slide-in-from-bottom {
-  animation: slideInBottom 0.28s cubic-bezier(0.4,0,0.2,1) forwards;
-}
-#task-card.slide-in-from-top {
-  animation: slideInTop 0.28s cubic-bezier(0.4,0,0.2,1) forwards;
+  transition: transform 0.32s cubic-bezier(0.4,0,0.2,1),
+              opacity   0.28s !important;
 }
 
-@keyframes slideInBottom {
-  from { transform: translateY(60px) scale(0.94); opacity: 0; }
-  to   { transform: translateY(0) scale(1); opacity: 1; }
+/* Enter from off-screen */
+#task-card.enter-from-bottom {
+  animation: enterBottom 0.32s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
 }
-@keyframes slideInTop {
-  from { transform: translateY(-60px) scale(0.94); opacity: 0; }
-  to   { transform: translateY(0) scale(1); opacity: 1; }
+#task-card.enter-from-top {
+  animation: enterTop 0.32s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
+}
+
+@keyframes enterBottom {
+  from { transform: translateY(110vh); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+@keyframes enterTop {
+  from { transform: translateY(-110vh); opacity: 0; }
+  to   { transform: translateY(0);      opacity: 1; }
 }
 
 #task-text {
@@ -186,7 +190,7 @@ html, body {
 }
 
 /* ── EMPTY CARD ── */
-#empty-card { width: 100%; display: none; }
+#empty-card { width: 100%; display: none; margin-top: 32px; }
 #empty-prompt {
   font-size: clamp(20px, 3.5vw, 28px);
   font-weight: 400;
@@ -196,18 +200,28 @@ html, body {
   padding: 10px 0;
 }
 
+/* ── BOTTOM DOCK — fixed below card, scrolls with stage ── */
+#bottom-dock {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  padding-bottom: 90px;
+}
+
 /* ── QUICK ACTIONS ── */
 #quick-actions {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 22px;
+  margin-top: 20px;
   flex-wrap: wrap;
   position: relative;
 }
 
-/* Icon pills — square-ish, centered icon */
 .qa-pill {
   background: var(--surface);
   border: 1.5px solid var(--border);
@@ -230,7 +244,6 @@ html, body {
 }
 .qa-pill:hover { border-color: var(--border2); color: var(--text); }
 .qa-pill.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-/* Active icon pill shows tag text small below icon */
 .qa-pill .pill-label {
   font-size: 11px;
   font-weight: 600;
@@ -286,8 +299,8 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 18px;
-  max-height: 260px;
+  margin-top: 16px;
+  max-height: 220px;
   overflow-y: auto;
 }
 #subtask-list::-webkit-scrollbar { width: 3px; }
@@ -365,12 +378,13 @@ html, body {
 .subtask-del:hover { border-color: var(--danger); color: var(--danger); }
 .subtask-card:hover .subtask-del { opacity: 0; pointer-events: none; }
 
-/* ── QUEUE HINT (no arrows) ── */
+/* ── QUEUE DOT INDICATORS ── */
 #queue-hint {
-  margin-top: 20px;
   display: none;
   align-items: center;
   justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
 }
 #queue-label {
   font-size: 13px;
@@ -378,10 +392,27 @@ html, body {
   color: var(--text-dim);
   text-align: center;
 }
+/* Dot row */
+#queue-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.q-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--border2);
+  transition: background 0.2s, transform 0.2s;
+  flex-shrink: 0;
+}
+.q-dot.active {
+  background: var(--accent);
+  transform: scale(1.4);
+}
 
 /* ── EMPTY DONE ── */
 #empty-done-msg {
-  margin-top: 24px;
+  margin-top: 32px;
   font-size: 16px;
   color: var(--text-dim);
   text-align: center;
@@ -491,7 +522,6 @@ html, body {
   padding: 24px 24px 90px;
 }
 
-/* Single-line input row — fixed height pill */
 #add-input-wrap {
   width: 100%;
   position: relative;
@@ -525,7 +555,6 @@ html, body {
 }
 #add-input::placeholder { color: var(--text-dim); }
 
-/* ✓ submit button inside pill right */
 #add-submit-btn {
   position: absolute;
   right: 16px;
@@ -547,7 +576,6 @@ html, body {
 #add-submit-btn:hover { background: #4836d4; }
 #add-submit-btn:active { transform: scale(0.92); }
 
-/* Tag icon dropdowns below input */
 #add-tag-actions {
   display: flex;
   align-items: center;
@@ -614,7 +642,6 @@ html, body {
 .filter-btn:hover { border-color: var(--border2); color: var(--text); }
 .filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
-/* Sort bar */
 #list-sort {
   display: flex;
   align-items: center;
@@ -645,7 +672,6 @@ html, body {
 .sort-btn:hover { border-color: var(--border2); color: var(--text-mid); }
 .sort-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
-/* Clear done */
 #clear-done-wrap { padding: 10px 28px 0; flex-shrink: 0; }
 #clear-done-btn {
   background: none;
@@ -664,7 +690,7 @@ html, body {
 #list-items {
   overflow-y: auto;
   flex: 1;
-  padding: 8px 20px 100px; /* bottom padding for list FAB */
+  padding: 8px 20px 100px;
   margin-top: 8px;
 }
 #list-items::-webkit-scrollbar { width: 3px; }
@@ -701,7 +727,7 @@ html, body {
 #list-fab:hover { transform: scale(1.1); background: #4836d4; box-shadow: 0 6px 36px rgba(92,71,245,0.45); }
 #list-fab:active { transform: scale(0.95); }
 
-/* List row */
+/* List rows */
 .list-item {
   display: flex;
   align-items: flex-start;
@@ -719,10 +745,7 @@ html, body {
 .list-item.is-current:hover { background: var(--accent-dim); }
 .list-item.done { cursor: default; }
 
-/* Drag states */
 .list-item.dragging { opacity: 0.35; }
-
-/* Drop indicator line */
 .list-item.drop-above::before {
   content: '';
   position: absolute;
@@ -777,7 +800,6 @@ html, body {
 }
 .list-item.done .list-item-text { text-decoration: line-through; color: var(--text-mid); }
 
-/* Row 2 — tag dropdowns below text (icon style) */
 .list-item-row2 {
   display: flex;
   gap: 6px;
@@ -803,7 +825,6 @@ html, body {
 .list-tag-btn:hover { border-color: var(--border2); color: var(--text-mid); }
 .list-tag-btn.active-tag { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
-/* List row actions */
 .list-item-actions {
   display: flex;
   gap: 6px;
@@ -967,8 +988,10 @@ html, body {
 /* ── RESPONSIVE ── */
 @media (max-width: 500px) {
   #top-bar, #add-top-bar { padding: 20px 18px 0; }
-  #stage, #add-stage { padding: 20px 16px 90px; }
+  #stage { padding: 0 16px 0; }
+  #card-viewport { margin-top: 24px; }
   #task-card { padding: 30px 28px; }
+  #add-stage { padding: 20px 16px 90px; }
   #add-input { padding: 0 64px 0 28px; height: 70px; line-height: 70px; }
   #fab, #list-fab { bottom: 24px; right: 20px; width: 58px; height: 58px; font-size: 28px; }
   #list-header { padding: 22px 18px 0; }
@@ -977,6 +1000,7 @@ html, body {
   #clear-done-wrap { padding: 8px 18px 0; }
   #list-items { padding: 6px 10px 90px; }
   #version-label { bottom: 10px; left: 12px; }
+  #bottom-dock { padding-bottom: 80px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
