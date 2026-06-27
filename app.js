@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────
-//  TASK CRUSHER — app.js  v6b
+//  TASK CRUSHER — app.js  v7
 // ─────────────────────────────────────────────
 
 // ── STATE ──
@@ -71,40 +71,41 @@ function render() {
   const done   = tasks.filter(t => t.done);
   const task   = currentTask();
 
-  // Task count badge
-  const countEl = document.getElementById('task-count');
-  if (active.length > 0 || done.length > 0) {
-    let txt = '';
-    if (active.length > 0) txt += active.length + ' task' + (active.length !== 1 ? 's' : '');
-    if (done.length  > 0)  txt += (txt ? '  ·  ' : '') + '✅ ' + done.length;
-    countEl.textContent = txt;
-    countEl.className   = done.length > 0 ? 'has-done' : '';
+  // Top-right nav counter: "1 / 3" — no done count here
+  const navCount = document.getElementById('task-nav-count');
+  if (active.length > 0) {
+    navCount.textContent = (currentIndex + 1) + ' / ' + active.length;
+  } else if (done.length > 0) {
+    navCount.textContent = '✅ ' + done.length + ' done';
   } else {
-    countEl.textContent = '';
-    countEl.className   = '';
+    navCount.textContent = '';
   }
 
-  const viewport  = document.getElementById('card-viewport');
-  const taskCard  = document.getElementById('task-card');
+  const taskPage  = document.getElementById('task-page');
   const emptyCard = document.getElementById('empty-card');
   const emptyDone = document.getElementById('empty-done-msg');
-  const dock      = document.getElementById('bottom-dock');
 
   if (task) {
-    viewport.style.display  = 'flex';
+    taskPage.style.display  = 'flex';
     emptyCard.style.display = 'none';
     emptyDone.style.display = 'none';
-    dock.style.display      = 'flex';
 
     document.getElementById('task-text').textContent = task.text;
 
-    renderDots(active.length);
+    // Color dot — show if task belongs to a split group
+    const dot = document.getElementById('task-color-dot');
+    if (task.color) {
+      dot.style.display    = 'block';
+      dot.style.background = task.color;
+    } else {
+      dot.style.display = 'none';
+    }
+
     renderQuickActions(task);
     renderSubtasks(task);
 
   } else {
-    viewport.style.display = 'none';
-    dock.style.display     = 'none';
+    taskPage.style.display = 'none';
 
     if (done.length > 0) {
       emptyCard.style.display = 'none';
@@ -117,57 +118,33 @@ function render() {
   }
 }
 
-// ── DOT INDICATORS ──
-function renderDots(count) {
-  const hint = document.getElementById('queue-hint');
-  const dots = document.getElementById('queue-dots');
-
-  if (count <= 1) {
-    hint.style.display = 'none';
-    return;
-  }
-
-  hint.style.display = 'flex';
-  // Max 10 dots; beyond that show "n of total" text
-  const MAX_DOTS = 10;
-  if (count <= MAX_DOTS) {
-    dots.innerHTML = Array.from({ length: count }, (_, i) =>
-      `<div class="q-dot ${i === currentIndex ? 'active' : ''}"></div>`
-    ).join('');
-  } else {
-    dots.innerHTML = `<span id="queue-label" style="font-size:13px;font-weight:500;color:var(--text-dim);">${currentIndex + 1} / ${count}</span>`;
-  }
-}
-
 // ══════════════════════════════════════════
-//  GALLERY NAV — full-screen card swap
+//  GALLERY NAV — whole page slides as one unit
 // ══════════════════════════════════════════
 let isAnimating = false;
 
-// Loop-aware navigation: dir = +1 (next) or -1 (prev)
 function navTask(dir) {
   if (isAnimating) return;
   const active = activeTasks();
   if (active.length < 2) return;
-
-  // Loop: wrap around
+  // Loop
   const newIdx = (currentIndex + dir + active.length) % active.length;
   animateToTask(newIdx, dir);
 }
 
 function animateToTask(newIdx, dir) {
   if (isAnimating) return;
-  const card = document.getElementById('task-card');
+  const page = document.getElementById('task-page');
   isAnimating = true;
 
-  // 1. Fly current card off screen
-  card.classList.remove('dragging');
-  card.style.transition = '';
-  card.style.transform  = '';
-  card.style.opacity    = '';
+  // 1. Fly current page off screen
+  page.classList.remove('dragging');
+  page.style.transition = '';
+  page.style.transform  = '';
+  page.style.opacity    = '';
 
   const exitClass = dir > 0 ? 'exit-up' : 'exit-down';
-  card.classList.add(exitClass);
+  page.classList.add(exitClass);
 
   setTimeout(() => {
     // 2. Swap content
@@ -175,52 +152,60 @@ function animateToTask(newIdx, dir) {
     save();
 
     const task = currentTask();
-    if (task) document.getElementById('task-text').textContent = task.text;
+    if (task) {
+      document.getElementById('task-text').textContent = task.text;
+      // color dot
+      const dot = document.getElementById('task-color-dot');
+      if (task.color) { dot.style.display = 'block'; dot.style.background = task.color; }
+      else            { dot.style.display = 'none'; }
+    }
 
-    // 3. Snap card to entry position (off-screen opposite side), no transition
-    card.classList.remove(exitClass);
-    card.style.transition = 'none';
-    card.style.opacity    = '0';
-    card.style.transform  = dir > 0 ? 'translateY(110vh)' : 'translateY(-110vh)';
+    // 3. Snap page to entry position (off-screen opposite), no transition
+    page.classList.remove(exitClass);
+    page.style.transition = 'none';
+    page.style.opacity    = '0';
+    page.style.transform  = dir > 0 ? 'translateY(110vh)' : 'translateY(-110vh)';
 
-    void card.offsetWidth; // force reflow
+    void page.offsetWidth; // force reflow
 
     // 4. Animate in
-    card.style.transition = '';
-    card.style.transform  = '';
-    card.style.opacity    = '';
-    card.classList.add(dir > 0 ? 'enter-from-bottom' : 'enter-from-top');
+    page.style.transition = '';
+    page.style.transform  = '';
+    page.style.opacity    = '';
+    page.classList.add(dir > 0 ? 'enter-from-bottom' : 'enter-from-top');
 
-    // Update supporting UI
-    const active = activeTasks();
-    renderDots(active.length);
+    // Update nav counter + actions
+    const navCount = document.getElementById('task-nav-count');
+    const active2  = activeTasks();
+    navCount.textContent = (currentIndex + 1) + ' / ' + active2.length;
     if (task) { renderQuickActions(task); renderSubtasks(task); }
 
     setTimeout(() => {
-      card.classList.remove('enter-from-bottom', 'enter-from-top');
+      page.classList.remove('enter-from-bottom', 'enter-from-top');
       isAnimating = false;
     }, 340);
   }, 300);
 }
 
-// ── TOUCH SWIPE — whole stage, full-screen feel ──
+// ── TOUCH SWIPE — whole stage is the swipe zone ──
 (function() {
   let startY = 0, startX = 0, startTime = 0;
   let dragging = false, deltaY = 0;
-  const card = () => document.getElementById('task-card');
+  const page  = () => document.getElementById('task-page');
   const stage = document.getElementById('stage');
 
   function blocked(t) {
-    return t.closest('#bottom-dock') || t.closest('#fab') ||
-           t.closest('#quick-actions') || t.closest('#subtask-list');
+    // Don't swipe when touching action pills, subtasks
+    return t.closest('#quick-actions') || t.closest('#subtask-list') || t.closest('#fab');
   }
 
   stage.addEventListener('touchstart', e => {
     if (blocked(e.target)) return;
-    startY = e.touches[0].clientY;
-    startX = e.touches[0].clientX;
+    startY    = e.touches[0].clientY;
+    startX    = e.touches[0].clientX;
     startTime = Date.now();
-    dragging = false; deltaY = 0;
+    dragging  = false;
+    deltaY    = 0;
   }, { passive: true });
 
   stage.addEventListener('touchmove', e => {
@@ -231,34 +216,33 @@ function animateToTask(newIdx, dir) {
     if (!dragging) return;
 
     deltaY = dy;
-    const c = card();
-    if (!c || activeTasks().length < 2 || isAnimating) return;
+    const p = page();
+    if (!p || activeTasks().length < 2 || isAnimating) return;
 
-    // Card follows finger — dampened, max pull 120px
-    const pull = Math.sign(dy) * Math.min(Math.abs(dy) * 0.55, 120);
-    const scale = 1 - Math.abs(pull) * 0.0006;
-    const alpha = 1 - Math.abs(pull) * 0.005;
-    c.classList.add('dragging');
-    c.style.transform = `translateY(${pull}px) scale(${scale})`;
-    c.style.opacity   = String(Math.max(0.3, alpha));
+    // Whole page follows finger — dampened
+    const pull  = Math.sign(dy) * Math.min(Math.abs(dy) * 0.55, 130);
+    const scale = 1 - Math.abs(pull) * 0.0004;
+    const alpha = 1 - Math.abs(pull) * 0.004;
+    p.classList.add('dragging');
+    p.style.transform = `translateY(${pull}px) scale(${scale})`;
+    p.style.opacity   = String(Math.max(0.25, alpha));
   }, { passive: true });
 
-  stage.addEventListener('touchend', e => {
+  stage.addEventListener('touchend', () => {
     if (!dragging) return;
     dragging = false;
 
-    const c = card();
+    const p      = page();
     const active = activeTasks();
-
-    const dy      = deltaY;
+    const dy     = deltaY;
     const elapsed = Date.now() - startTime;
     const isFlick = elapsed < 280 && Math.abs(dy) > 35;
     const isSlide = Math.abs(dy) > 90;
 
-    if (c) {
-      c.classList.remove('dragging');
-      c.style.transform = '';
-      c.style.opacity   = '';
+    if (p) {
+      p.classList.remove('dragging');
+      p.style.transform = '';
+      p.style.opacity   = '';
     }
 
     if ((isFlick || isSlide) && active.length > 1 && !isAnimating) {
@@ -269,8 +253,8 @@ function animateToTask(newIdx, dir) {
 
   stage.addEventListener('touchcancel', () => {
     dragging = false; deltaY = 0;
-    const c = card();
-    if (c) { c.classList.remove('dragging'); c.style.transform = ''; c.style.opacity = ''; }
+    const p = page();
+    if (p) { p.classList.remove('dragging'); p.style.transform = ''; p.style.opacity = ''; }
   }, { passive: true });
 })();
 
@@ -279,20 +263,14 @@ function animateToTask(newIdx, dir) {
   let wheelCooldown = false;
 
   document.getElementById('stage').addEventListener('wheel', e => {
-    // Don't fire when list or modals are open
     if (!document.getElementById('list-overlay').classList.contains('hidden')) return;
     if (!document.getElementById('add-screen').classList.contains('hidden')) return;
     if (!document.getElementById('split-modal').classList.contains('hidden')) return;
-    // Don't fire when hovering subtask list (it might scroll)
     if (e.target.closest('#subtask-list')) return;
-
     if (wheelCooldown || isAnimating) return;
     if (activeTasks().length < 2) return;
 
-    const dir = e.deltaY > 0 ? 1 : -1;
-    navTask(dir);
-
-    // Cooldown so one physical scroll = one task step
+    navTask(e.deltaY > 0 ? 1 : -1);
     wheelCooldown = true;
     setTimeout(() => { wheelCooldown = false; }, 420);
   }, { passive: true });
@@ -412,21 +390,17 @@ function handleCardClick() { crushTask(); }
 
 function crushTask() {
   const task = currentTask(); if (!task) return;
-  const card = document.getElementById('task-card');
-  card.style.pointerEvents = 'none';
+  const page = document.getElementById('task-page');
+  page.style.pointerEvents = 'none';
 
   task.done = true;
-  // After crush, move to next (looping) or clamp
   const remaining = activeTasks();
-  if (remaining.length > 0) {
-    currentIndex = currentIndex % remaining.length;
-  } else {
-    currentIndex = 0;
-  }
+  currentIndex = remaining.length > 0 ? currentIndex % remaining.length : 0;
   save();
   playConfetti();
   showCrushFlash();
-  setTimeout(() => { card.style.pointerEvents = ''; render(); }, 900);
+  // Longer animation — render after flash fades (1.4s total)
+  setTimeout(() => { page.style.pointerEvents = ''; render(); }, 1400);
 }
 
 function crushSubtask(idx) {
@@ -489,8 +463,7 @@ function confirmSplit() {
   }));
   const taskIdx = tasks.indexOf(task);
   tasks.splice(taskIdx + 1, 0, ...newTasks);
-  const firstChild = newTasks[0];
-  const fi = activeTasks().indexOf(firstChild);
+  const fi = activeTasks().indexOf(newTasks[0]);
   if (fi !== -1) currentIndex = fi;
   save(); closeSplitModal(); render();
 }
@@ -512,6 +485,16 @@ function closeAddScreen() {
   document.getElementById('add-screen').classList.add('hidden');
   closeAllDropdowns();
 }
+
+// Close add screen when clicking outside the input area
+function handleAddStageClick(e) {
+  const inner = document.getElementById('add-input-wrap');
+  const tags  = document.getElementById('add-tag-actions');
+  if (!inner.contains(e.target) && !tags.contains(e.target)) {
+    closeAddScreen();
+  }
+}
+
 function submitTask() {
   const text = document.getElementById('add-input').value.trim();
   if (!text) { document.getElementById('add-input').focus(); return; }
@@ -591,6 +574,7 @@ function getSortedActiveTasks() {
   }
   return active;
 }
+
 function renderList() {
   const isDone = currentFilter === 'done';
   const isAll  = currentFilter === 'all';
@@ -608,76 +592,142 @@ function renderList() {
   const splitParentIds = new Set(tasks.filter(t => t.parentId).map(t => t.parentId));
 
   el.innerHTML = items.map(task => {
-    const realIdx  = tasks.indexOf(task);
-    const hasDot   = task.parentId || splitParentIds.has(task.id);
-    const dotColor = task.color || 'var(--accent)';
-    const timeTag  = (task.tags||[]).find(t => timeOpts.includes(t));
-    const prioTag  = (task.tags||[]).find(t => prioOpts.includes(t));
-    const ddId     = `list-dd-${realIdx}`;
+    const realIdx   = tasks.indexOf(task);
+    const hasDot    = task.parentId || splitParentIds.has(task.id);
+    const dotColor  = task.color || 'var(--accent)';
+    const timeTag   = (task.tags||[]).find(t => timeOpts.includes(t));
+    const prioTag   = (task.tags||[]).find(t => prioOpts.includes(t));
+    const ddId      = `list-dd-${realIdx}`;
     const isCurrent = !task.done && currentTask() && task.id === currentTask().id;
 
+    // Done tasks — with swipe-to-restore wrapper
     if (task.done) return `
-      <div class="list-item done">
-        <div class="list-item-dot ${hasDot?'':'invisible'}" style="background:${dotColor}"></div>
-        <div class="list-item-body"><div class="list-item-text">${esc(task.text)}</div></div>
-        <div class="list-item-actions">
-          <button class="list-action-btn del" onclick="listDelete(${realIdx},event)" title="Delete">✕</button>
+      <div class="list-item done" data-idx="${realIdx}">
+        <div class="restore-btn-wrap">
+          <button class="restore-btn" onclick="restoreTask(${realIdx},event)">↩ Restore</button>
+        </div>
+        <div class="list-item-inner">
+          <div class="list-item-dot ${hasDot?'':'invisible'}" style="background:${dotColor}"></div>
+          <div class="list-item-body"><div class="list-item-text">${esc(task.text)}</div></div>
+          <div class="list-item-actions">
+            <button class="list-action-btn del" onclick="listDelete(${realIdx},event)" title="Delete">✕</button>
+          </div>
         </div>
       </div>`;
 
+    // Active tasks — no onclick select (disabled)
     return `
       <div class="list-item ${isCurrent?'is-current':''}"
            draggable="${currentSort==='manual'?'true':'false'}"
            data-idx="${realIdx}"
-           onclick="listSelectTask(${realIdx})"
            ondragstart="onDragStart(event,${realIdx})"
            ondragover="onDragOver(event,${realIdx})"
            ondrop="onDrop(event,${realIdx})"
            ondragend="onDragEnd(event)">
-        <div class="drag-handle ${currentSort==='manual'?'':'hidden'}" onclick="event.stopPropagation()">⠿</div>
-        <div class="list-item-dot ${hasDot?'':'invisible'}" style="background:${dotColor}"></div>
-        <div class="list-item-body">
-          <div class="list-item-text">${esc(task.text)}</div>
-          <div class="list-item-row2">
-            <div class="list-dd" onclick="event.stopPropagation()">
-              <button class="list-tag-btn ${timeTag?'active-tag':''}"
-                onclick="toggleListDd('${ddId}-time',event)" title="${timeTag||'Set time'}">
-                🕐${timeTag?`<span style="font-size:10px;margin-left:2px;">${timeTag}</span>`:''}
-              </button>
-              <div class="list-dd-menu" id="${ddId}-time">
-                ${timeOpts.map(o=>`<button class="qa-menu-item ${timeTag===o?'selected':''}"
-                  onclick="listSetTag(${realIdx},'time','${o}',event)">${o}</button>`).join('')}
-                ${timeTag?`<div class="qa-menu-sep"></div>
-                  <button class="qa-menu-item" onclick="listClearTag(${realIdx},'time',event)">Clear</button>`:''}
+        <div class="list-item-inner">
+          <div class="drag-handle ${currentSort==='manual'?'':'hidden'}" onclick="event.stopPropagation()">⠿</div>
+          <div class="list-item-dot ${hasDot?'':'invisible'}" style="background:${dotColor}"></div>
+          <div class="list-item-body">
+            <div class="list-item-text">${esc(task.text)}</div>
+            <div class="list-item-row2">
+              <div class="list-dd" onclick="event.stopPropagation()">
+                <button class="list-tag-btn ${timeTag?'active-tag':''}"
+                  onclick="toggleListDd('${ddId}-time',event)" title="${timeTag||'Set time'}">
+                  🕐${timeTag?`<span style="font-size:10px;margin-left:2px;">${timeTag}</span>`:''}
+                </button>
+                <div class="list-dd-menu" id="${ddId}-time">
+                  ${timeOpts.map(o=>`<button class="qa-menu-item ${timeTag===o?'selected':''}"
+                    onclick="listSetTag(${realIdx},'time','${o}',event)">${o}</button>`).join('')}
+                  ${timeTag?`<div class="qa-menu-sep"></div>
+                    <button class="qa-menu-item" onclick="listClearTag(${realIdx},'time',event)">Clear</button>`:''}
+                </div>
               </div>
-            </div>
-            <div class="list-dd" onclick="event.stopPropagation()">
-              <button class="list-tag-btn ${prioTag?'active-tag':''}"
-                onclick="toggleListDd('${ddId}-prio',event)" title="${prioTag||'Set priority'}">
-                🔥${prioTag?`<span style="font-size:10px;margin-left:2px;">${prioTag}</span>`:''}
-              </button>
-              <div class="list-dd-menu" id="${ddId}-prio">
-                ${prioOpts.map(o=>`<button class="qa-menu-item ${prioTag===o?'selected':''}"
-                  onclick="listSetTag(${realIdx},'prio','${o}',event)">${o}</button>`).join('')}
-                ${prioTag?`<div class="qa-menu-sep"></div>
-                  <button class="qa-menu-item" onclick="listClearTag(${realIdx},'prio',event)">Clear</button>`:''}
+              <div class="list-dd" onclick="event.stopPropagation()">
+                <button class="list-tag-btn ${prioTag?'active-tag':''}"
+                  onclick="toggleListDd('${ddId}-prio',event)" title="${prioTag||'Set priority'}">
+                  🔥${prioTag?`<span style="font-size:10px;margin-left:2px;">${prioTag}</span>`:''}
+                </button>
+                <div class="list-dd-menu" id="${ddId}-prio">
+                  ${prioOpts.map(o=>`<button class="qa-menu-item ${prioTag===o?'selected':''}"
+                    onclick="listSetTag(${realIdx},'prio','${o}',event)">${o}</button>`).join('')}
+                  ${prioTag?`<div class="qa-menu-sep"></div>
+                    <button class="qa-menu-item" onclick="listClearTag(${realIdx},'prio',event)">Clear</button>`:''}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="list-item-actions" onclick="event.stopPropagation()">
-          <button class="list-action-btn crush" onclick="listCrush(${realIdx},event)" title="Crush">✓</button>
-          <button class="list-action-btn del"   onclick="listDelete(${realIdx},event)" title="Delete">✕</button>
+          <div class="list-item-actions" onclick="event.stopPropagation()">
+            <button class="list-action-btn crush" onclick="listCrush(${realIdx},event)" title="Crush">✓</button>
+            <button class="list-action-btn del"   onclick="listDelete(${realIdx},event)" title="Delete">✕</button>
+          </div>
         </div>
       </div>`;
   }).join('');
+
+  // Attach swipe-to-restore listeners to done rows
+  attachSwipeRestore();
 }
 
-function listSelectTask(realIdx) {
-  const task = tasks[realIdx]; if (!task || task.done) return;
-  const ni = activeTasks().indexOf(task); if (ni === -1) return;
-  currentIndex = ni; save(); closeList(); render();
+// ── SWIPE TO RESTORE (done rows) ──
+function attachSwipeRestore() {
+  document.querySelectorAll('.list-item.done').forEach(row => {
+    const inner = row.querySelector('.list-item-inner');
+    if (!inner) return;
+    let startX = 0, startY = 0, swiping = false, currentX = 0;
+    const THRESHOLD = 80; // px to trigger restore
+
+    row.addEventListener('touchstart', e => {
+      startX   = e.touches[0].clientX;
+      startY   = e.touches[0].clientY;
+      swiping  = false;
+      currentX = 0;
+      inner.style.transition = 'none';
+    }, { passive: true });
+
+    row.addEventListener('touchmove', e => {
+      const dx = e.touches[0].clientX - startX;
+      const dy = Math.abs(e.touches[0].clientY - startY);
+      if (!swiping && Math.abs(dx) > 8 && Math.abs(dx) > dy) swiping = true;
+      if (!swiping) return;
+      // Only allow left swipe (negative dx)
+      currentX = Math.min(0, dx);
+      inner.style.transform = `translateX(${currentX}px)`;
+    }, { passive: true });
+
+    row.addEventListener('touchend', () => {
+      if (!swiping) return;
+      inner.style.transition = '';
+      if (currentX < -THRESHOLD) {
+        // Snap fully open to reveal restore button
+        inner.style.transform = `translateX(-110px)`;
+      } else {
+        // Snap back
+        inner.style.transform = 'translateX(0)';
+      }
+      swiping = false;
+    }, { passive: true });
+
+    row.addEventListener('touchcancel', () => {
+      swiping = false;
+      inner.style.transition = '';
+      inner.style.transform  = 'translateX(0)';
+    }, { passive: true });
+  });
 }
+
+// ── RESTORE TASK ──
+function restoreTask(idx, event) {
+  event && event.stopPropagation();
+  const task = tasks[idx]; if (!task) return;
+  task.done = false;
+  // Put it back at end of active queue
+  const active = activeTasks();
+  currentIndex = active.indexOf(task);
+  if (currentIndex < 0) currentIndex = Math.max(0, active.length - 1);
+  save(); renderList(); render();
+}
+
+// ── LIST ACTIONS ──
 function listCrush(idx, event) {
   event && event.stopPropagation();
   tasks[idx].done = true;
@@ -811,7 +861,6 @@ function onDragEnd(event) {
 
   document.addEventListener('touchend', e => {
     if (touchDragIdx === null) return;
-    const t = e.changedTouches[0];
     if (ghostEl) { ghostEl.remove(); ghostEl = null; }
     const over = lastLineEl, pos = lastLinePos;
     clearLines();
@@ -854,7 +903,7 @@ function playConfetti(mini = false) {
     ctx.clearRect(0,0,canvas.width,canvas.height);
     let alive = false;
     pieces.forEach(p => {
-      p.x+=p.vx; p.y+=p.vy; p.vy+=0.2; p.rot+=p.rotV; p.opacity-=mini?0.02:0.013;
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.2; p.rot+=p.rotV; p.opacity-=mini?0.016:0.009;
       if (p.opacity>0 && p.y<canvas.height+20) {
         alive=true; ctx.save(); ctx.globalAlpha=Math.max(0,p.opacity);
         ctx.translate(p.x,p.y); ctx.rotate(p.rot*Math.PI/180);
@@ -872,10 +921,11 @@ function showCrushFlash() {
   text.textContent = rand(CRUSH_WORDS);
   flash.style.transition = 'opacity 0.12s'; flash.style.opacity = '1';
   text.style.transform = 'scale(1)'; text.style.opacity = '1';
+  // Longer — stays visible 900ms then fades over 500ms
   setTimeout(() => {
-    flash.style.transition = 'opacity 0.4s'; flash.style.opacity = '0';
+    flash.style.transition = 'opacity 0.5s'; flash.style.opacity = '0';
     text.style.opacity = '0'; text.style.transform = 'scale(0.7)';
-  }, 550);
+  }, 900);
 }
 
 // ── KEYBOARD ──
@@ -895,9 +945,6 @@ document.addEventListener('keydown', e => {
   }
 });
 
-document.getElementById('list-overlay').addEventListener('click', function(e) {
-  if (e.target === this) this.classList.add('hidden');
-});
 document.getElementById('split-modal').addEventListener('click', function(e) {
   if (e.target === this) this.classList.add('hidden');
 });

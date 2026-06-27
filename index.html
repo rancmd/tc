@@ -45,36 +45,35 @@
   <div id="app">
     <div id="top-bar">
       <div id="logo">TASK <span>CRUSHER</span></div>
-      <div id="task-count" onclick="openList()"></div>
+      <!-- Task position counter top-right (replaces dots) -->
+      <div id="task-nav">
+        <span id="task-nav-count" onclick="openList()"></span>
+      </div>
     </div>
 
+    <!-- Stage clips the sliding page-unit -->
     <div id="stage">
 
-      <!-- Full-screen gallery card viewport -->
-      <div id="card-viewport">
+      <!-- The whole "page" — card + actions — slides as one unit -->
+      <div id="task-page">
         <div id="task-card" onclick="handleCardClick()">
+          <!-- Color dot for split-group tasks -->
+          <div id="task-color-dot"></div>
           <div id="task-text"></div>
         </div>
+        <div id="quick-actions"></div>
+        <div id="subtask-list"></div>
       </div>
 
-      <!-- Empty states (outside viewport, not sliding) -->
+      <!-- Empty states sit outside the sliding page -->
       <div id="empty-card">
         <div id="empty-prompt"></div>
       </div>
       <div id="empty-done-msg">🎉 <strong>Queue empty.</strong> You crushed everything.</div>
 
-      <!-- Everything below card: actions, subtasks, dots -->
-      <div id="bottom-dock">
-        <div id="quick-actions"></div>
-        <div id="subtask-list"></div>
-        <div id="queue-hint">
-          <div id="queue-dots"></div>
-        </div>
-      </div>
-
     </div>
 
-    <div id="version-label">v6b</div>
+    <div id="version-label">v7</div>
     <button id="fab" onclick="openAddScreen()" title="Add task">+</button>
   </div>
 
@@ -84,7 +83,8 @@
       <div id="add-logo">TASK <span>CRUSHER</span></div>
       <button id="add-screen-close" onclick="closeAddScreen()">✕</button>
     </div>
-    <div id="add-stage">
+    <!-- Clicking the backdrop (add-stage) outside the input area closes the screen -->
+    <div id="add-stage" onclick="handleAddStageClick(event)">
       <div id="add-input-wrap">
         <input type="text" id="add-input" placeholder="What needs to be done?" maxlength="200" />
         <button id="add-submit-btn" onclick="submitTask()" title="Add task">✓</button>
