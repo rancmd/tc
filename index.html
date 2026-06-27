@@ -40,6 +40,8 @@
       </div>
       <div id="list-items"></div>
     </div>
+    <!-- FAB inside list overlay -->
+    <button id="list-fab" onclick="closeList();openAddScreen();" title="Add task">+</button>
   </div>
 
   <!-- ── APP ── -->
@@ -50,10 +52,14 @@
     </div>
 
     <div id="stage">
-      <!-- Task card — click to crush -->
-      <div id="task-card" onclick="handleCardClick()">
-        <div id="task-text"></div>
-        <div id="crush-hover-label">✊ Crush it!</div>
+      <!-- Card stack viewport -->
+      <div id="card-stack">
+        <!-- Task card — click to crush -->
+        <div id="task-card" onclick="handleCardClick()">
+          <div id="task-text"></div>
+        </div>
+        <!-- Ghost card behind (next task preview) -->
+        <div id="task-card-ghost"></div>
       </div>
 
       <!-- Empty state -->
@@ -61,21 +67,22 @@
         <div id="empty-prompt"></div>
       </div>
 
-      <!-- Quick actions: dropdowns -->
+      <!-- Quick actions: icon pills -->
       <div id="quick-actions"></div>
 
       <!-- Subtasks -->
       <div id="subtask-list"></div>
 
-      <!-- Queue hint with nav arrows -->
+      <!-- Queue label (no arrows) -->
       <div id="queue-hint">
-        <button id="nav-prev" class="nav-btn" onclick="navTask(-1)" title="Previous task">↑</button>
         <span id="queue-label"></span>
-        <button id="nav-next" class="nav-btn" onclick="navTask(1)" title="Next task">↓</button>
       </div>
 
       <div id="empty-done-msg">🎉 <strong>Queue empty.</strong> You crushed everything.</div>
     </div>
+
+    <!-- Version -->
+    <div id="version-label">v6</div>
 
     <!-- FAB -->
     <button id="fab" onclick="openAddScreen()" title="Add task">+</button>
@@ -90,7 +97,7 @@
     <div id="add-stage">
       <!-- Input styled like the task card area -->
       <div id="add-input-wrap">
-        <textarea id="add-input" placeholder="What needs to be done?" rows="3"></textarea>
+        <input type="text" id="add-input" placeholder="What needs to be done?" maxlength="200" />
         <button id="add-submit-btn" onclick="submitTask()" title="Add task">✓</button>
       </div>
       <!-- Tag dropdowns below — same layout as quick actions -->
@@ -98,7 +105,7 @@
         <!-- Time dropdown -->
         <div class="qa-dropdown" id="add-dd-time">
           <button class="qa-pill" id="add-time-pill" onclick="toggleAddDropdown('add-dd-time')">
-            Time ▾
+            🕐
           </button>
           <div class="qa-dropdown-menu" id="add-dd-time-menu">
             <button class="qa-menu-item" onclick="addSetTime('5 min')">5 min</button>
@@ -109,7 +116,7 @@
         <!-- Priority dropdown -->
         <div class="qa-dropdown" id="add-dd-prio">
           <button class="qa-pill" id="add-prio-pill" onclick="toggleAddDropdown('add-dd-prio')">
-            Priority ▾
+            🔥
           </button>
           <div class="qa-dropdown-menu" id="add-dd-prio-menu">
             <button class="qa-menu-item" onclick="addSetPrio('Urgent')">Urgent</button>

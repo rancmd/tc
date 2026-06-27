@@ -75,6 +75,20 @@ html, body {
 #task-count:hover { border-color: var(--border); color: var(--text); }
 #task-count.has-done { color: var(--green); }
 
+/* ── VERSION LABEL ── */
+#version-label {
+  position: fixed;
+  bottom: 14px;
+  left: 18px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  user-select: none;
+  z-index: 5;
+  opacity: 0.5;
+}
+
 /* ── STAGE ── */
 #stage {
   flex: 1;
@@ -87,6 +101,30 @@ html, body {
   padding: 24px 24px 90px;
 }
 
+/* ── CARD STACK ── */
+#card-stack {
+  width: 100%;
+  position: relative;
+  display: none; /* shown via JS when task exists */
+}
+
+/* Ghost card behind — simulates next card in stack */
+#task-card-ghost {
+  position: absolute;
+  bottom: -10px;
+  left: 6px;
+  right: 6px;
+  height: 100%;
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-pill);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.6;
+  transform: scale(0.97);
+  display: none;
+}
+
 /* ── TASK CARD ── */
 #task-card {
   width: 100%;
@@ -97,21 +135,47 @@ html, body {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: border-color 0.18s, background 0.18s, transform 0.12s, box-shadow 0.18s;
-  display: none;
+  z-index: 1;
   text-align: center;
   box-shadow: 0 2px 16px rgba(0,0,0,0.06);
   user-select: none;
   -webkit-user-select: none;
+  /* Slide animation state */
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.22s, box-shadow 0.18s;
 }
-#task-card:hover,
-#task-card.touch-active {
-  background: var(--crush-bg);
-  border-color: var(--crush-bg);
-  transform: scale(1.02);
-  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+
+#task-card:active {
+  transform: scale(0.98);
+  box-shadow: 0 1px 8px rgba(0,0,0,0.08);
 }
-#task-card:active { transform: scale(0.98); }
+
+/* Slide-out animations */
+#task-card.slide-up {
+  transform: translateY(-120%) scale(0.92) !important;
+  opacity: 0 !important;
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s !important;
+}
+#task-card.slide-down {
+  transform: translateY(120%) scale(0.92) !important;
+  opacity: 0 !important;
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s !important;
+}
+/* Incoming slide animation */
+#task-card.slide-in-from-bottom {
+  animation: slideInBottom 0.28s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+#task-card.slide-in-from-top {
+  animation: slideInTop 0.28s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+
+@keyframes slideInBottom {
+  from { transform: translateY(60px) scale(0.94); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes slideInTop {
+  from { transform: translateY(-60px) scale(0.94); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
 
 #task-text {
   font-size: clamp(22px, 4vw, 34px);
@@ -119,27 +183,7 @@ html, body {
   line-height: 1.35;
   color: var(--text);
   word-break: break-word;
-  transition: opacity 0.18s;
 }
-#task-card:hover #task-text,
-#task-card.touch-active #task-text { opacity: 0; }
-
-#crush-hover-label {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: clamp(22px, 4vw, 34px);
-  font-weight: 700;
-  color: var(--crush-fg);
-  opacity: 0;
-  transition: opacity 0.18s;
-  border-radius: var(--radius-pill);
-  letter-spacing: -0.01em;
-}
-#task-card:hover #crush-hover-label,
-#task-card.touch-active #crush-hover-label { opacity: 1; }
 
 /* ── EMPTY CARD ── */
 #empty-card { width: 100%; display: none; }
@@ -163,14 +207,14 @@ html, body {
   position: relative;
 }
 
+/* Icon pills — square-ish, centered icon */
 .qa-pill {
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-pill);
-  padding: 10px 18px;
+  padding: 10px 16px;
   font-family: var(--font);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 18px;
   color: var(--text-mid);
   cursor: pointer;
   transition: all 0.15s;
@@ -178,12 +222,22 @@ html, body {
   white-space: nowrap;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  min-width: 48px;
+  line-height: 1;
 }
 .qa-pill:hover { border-color: var(--border2); color: var(--text); }
 .qa-pill.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-.qa-pill.skip:hover { border-color: var(--border2); }
+/* Active icon pill shows tag text small below icon */
+.qa-pill .pill-label {
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 2px;
+  letter-spacing: 0.02em;
+}
+.qa-pill.danger:hover { border-color: var(--danger); color: var(--danger); background: rgba(229,57,53,0.07); }
 
 .qa-dropdown { position: relative; }
 
@@ -217,7 +271,7 @@ html, body {
   background: none;
   border: none;
   font-family: var(--font);
-  text-align: left;
+  text-align: center;
   width: 100%;
 }
 .qa-menu-item:hover { background: var(--surface2); color: var(--text); }
@@ -311,36 +365,17 @@ html, body {
 .subtask-del:hover { border-color: var(--danger); color: var(--danger); }
 .subtask-card:hover .subtask-del { opacity: 0; pointer-events: none; }
 
-/* ── QUEUE HINT / NAV ── */
+/* ── QUEUE HINT (no arrows) ── */
 #queue-hint {
-  margin-top: 28px;
+  margin-top: 20px;
   display: none;
   align-items: center;
-  gap: 14px;
-}
-.nav-btn {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  border-radius: 50%;
-  width: 36px; height: 36px;
-  font-size: 16px;
-  color: var(--text-mid);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  transition: all 0.15s;
-  font-family: var(--font);
-  line-height: 1;
-  flex-shrink: 0;
 }
-.nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.nav-btn:disabled { opacity: 0.3; cursor: default; }
 #queue-label {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-dim);
-  min-width: 60px;
   text-align: center;
 }
 
@@ -399,7 +434,7 @@ html, body {
 @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeInFast { from { opacity: 0; } to { opacity: 1; } }
 
-/* ── ADD TASK SCREEN — full frame overlay, same look as main app ── */
+/* ── ADD TASK SCREEN ── */
 #add-screen {
   position: fixed;
   inset: 0;
@@ -456,12 +491,12 @@ html, body {
   padding: 24px 24px 90px;
 }
 
-/* Input row — mirrors task card pill shape */
+/* Single-line input row — fixed height pill */
 #add-input-wrap {
   width: 100%;
   position: relative;
   display: flex;
-  align-items: stretch;
+  align-items: center;
 }
 
 #add-input {
@@ -469,18 +504,20 @@ html, body {
   background: var(--surface);
   border: 2px solid var(--border);
   border-radius: var(--radius-pill);
-  padding: 28px 72px 28px 40px; /* right padding makes room for ✓ button */
+  padding: 0 72px 0 40px;
   font-family: var(--font);
   font-size: clamp(18px, 3.5vw, 26px);
   font-weight: 500;
   color: var(--text);
   outline: none;
-  resize: none;
-  line-height: 1.4;
+  height: 80px;
+  line-height: 80px;
   caret-color: var(--accent);
   transition: border-color 0.18s, box-shadow 0.18s;
   box-shadow: 0 2px 16px rgba(0,0,0,0.06);
-  min-height: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 #add-input:focus {
   border-color: var(--accent);
@@ -488,12 +525,10 @@ html, body {
 }
 #add-input::placeholder { color: var(--text-dim); }
 
-/* ✓ submit button — floats inside the pill on the right */
+/* ✓ submit button inside pill right */
 #add-submit-btn {
   position: absolute;
   right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: var(--accent);
@@ -510,9 +545,9 @@ html, body {
   flex-shrink: 0;
 }
 #add-submit-btn:hover { background: #4836d4; }
-#add-submit-btn:active { transform: translateY(-50%) scale(0.92); }
+#add-submit-btn:active { transform: scale(0.92); }
 
-/* Tag dropdowns below input — same layout as quick-actions */
+/* Tag icon dropdowns below input */
 #add-tag-actions {
   display: flex;
   align-items: center;
@@ -523,7 +558,7 @@ html, body {
   position: relative;
 }
 
-/* ── TASK LIST — full screen ── */
+/* ── TASK LIST ── */
 #list-panel {
   width: 100%;
   height: 100dvh;
@@ -629,7 +664,7 @@ html, body {
 #list-items {
   overflow-y: auto;
   flex: 1;
-  padding: 8px 20px 32px;
+  padding: 8px 20px 100px; /* bottom padding for list FAB */
   margin-top: 8px;
 }
 #list-items::-webkit-scrollbar { width: 3px; }
@@ -641,6 +676,30 @@ html, body {
   color: var(--text-dim);
   font-size: 15px;
 }
+
+/* List FAB */
+#list-fab {
+  position: fixed;
+  bottom: 32px; right: 32px;
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 300;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 4px 24px rgba(92,71,245,0.30);
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+  z-index: 210;
+  user-select: none;
+}
+#list-fab:hover { transform: scale(1.1); background: #4836d4; box-shadow: 0 6px 36px rgba(92,71,245,0.45); }
+#list-fab:active { transform: scale(0.95); }
 
 /* List row */
 .list-item {
@@ -661,8 +720,25 @@ html, body {
 .list-item.done { cursor: default; }
 
 /* Drag states */
-.list-item.dragging { opacity: 0.4; }
-.list-item.drag-over { background: var(--accent-dim); }
+.list-item.dragging { opacity: 0.35; }
+
+/* Drop indicator line */
+.list-item.drop-above::before {
+  content: '';
+  position: absolute;
+  top: -2px; left: 0; right: 0;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.list-item.drop-below::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
 
 .drag-handle {
   color: var(--text-dim);
@@ -701,7 +777,7 @@ html, body {
 }
 .list-item.done .list-item-text { text-decoration: line-through; color: var(--text-mid); }
 
-/* Row 2 — tag dropdowns below text */
+/* Row 2 — tag dropdowns below text (icon style) */
 .list-item-row2 {
   display: flex;
   gap: 6px;
@@ -711,19 +787,23 @@ html, body {
   background: var(--surface2);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-pill);
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 500;
+  padding: 5px 10px;
+  font-size: 14px;
   color: var(--text-dim);
   cursor: pointer;
   font-family: var(--font);
   transition: all 0.12s;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  min-width: 36px;
 }
 .list-tag-btn:hover { border-color: var(--border2); color: var(--text-mid); }
 .list-tag-btn.active-tag { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
-/* List row actions — ✓ and ✕ icon buttons */
+/* List row actions */
 .list-item-actions {
   display: flex;
   gap: 6px;
@@ -748,7 +828,6 @@ html, body {
 }
 .list-dd-menu.open { display: flex; }
 
-/* Icon action buttons — ✓ crush and ✕ delete */
 .list-action-btn {
   background: none;
   border: 1.5px solid var(--border);
@@ -767,21 +846,6 @@ html, body {
 }
 .list-action-btn.crush:hover { border-color: var(--green); color: var(--green); background: rgba(22,163,74,0.07); }
 .list-action-btn.del:hover   { border-color: var(--danger); color: var(--danger); background: rgba(229,57,53,0.07); }
-
-.list-icon-btn {
-  background: none;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: 6px 12px;
-  font-size: 13px;
-  color: var(--text-dim);
-  cursor: pointer;
-  font-family: var(--font);
-  transition: all 0.12s;
-  white-space: nowrap;
-}
-.list-icon-btn:hover { border-color: var(--border2); color: var(--text-mid); }
-.list-icon-btn.del:hover { border-color: var(--danger); color: var(--danger); }
 
 /* ── SPLIT MODAL ── */
 #split-panel {
@@ -905,13 +969,14 @@ html, body {
   #top-bar, #add-top-bar { padding: 20px 18px 0; }
   #stage, #add-stage { padding: 20px 16px 90px; }
   #task-card { padding: 30px 28px; }
-  #add-input { padding: 22px 64px 22px 28px; }
-  #fab { bottom: 24px; right: 20px; width: 58px; height: 58px; font-size: 28px; }
+  #add-input { padding: 0 64px 0 28px; height: 70px; line-height: 70px; }
+  #fab, #list-fab { bottom: 24px; right: 20px; width: 58px; height: 58px; font-size: 28px; }
   #list-header { padding: 22px 18px 0; }
   #list-filters { padding: 14px 18px 0; }
   #list-sort { padding: 10px 18px 0; }
   #clear-done-wrap { padding: 8px 18px 0; }
-  #list-items { padding: 6px 10px 28px; }
+  #list-items { padding: 6px 10px 90px; }
+  #version-label { bottom: 10px; left: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
