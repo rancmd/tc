@@ -29,6 +29,9 @@ html, body {
   font-family: var(--font);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* ── APP LAYOUT ── */
@@ -105,12 +108,35 @@ html, body {
 #stage {
   flex: 1;
   width: 100%;
-  max-width: 680px;
+  max-width: 100%; /* full width for swipe detection */
   position: relative;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Inner centering wrapper */
+#stage-inner {
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 100%;
+}
+
+/* Inner centering wrapper */
+#stage-inner {
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* ── TASK PAGE — card + actions slide as ONE unit ── */
@@ -121,23 +147,20 @@ html, body {
   flex-direction: column;
   align-items: center;
   /* GPU layer for smooth animation */
-  will-change: transform, opacity;
-  transition: transform 0.35s cubic-bezier(0.4,0,0.2,1),
-              opacity   0.35s cubic-bezier(0.4,0,0.2,1);
+  will-change: transform;
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
 }
 
 /* Exit animations — whole page flies off */
 #task-page.exit-up {
-  transform: translateY(-110vh) !important;
-  opacity: 0 !important;
-  transition: transform 0.32s cubic-bezier(0.4,0,0.2,1),
-              opacity   0.28s !important;
+  transform: translateY(-100vh) !important;
+  opacity: 1 !important;
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1) !important;
 }
 #task-page.exit-down {
-  transform: translateY(110vh) !important;
-  opacity: 0 !important;
-  transition: transform 0.32s cubic-bezier(0.4,0,0.2,1),
-              opacity   0.28s !important;
+  transform: translateY(100vh) !important;
+  opacity: 1 !important;
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1) !important;
 }
 
 /* Dragging — follow finger with no transition */
@@ -147,56 +170,48 @@ html, body {
 
 /* Enter from off-screen */
 #task-page.enter-from-bottom {
-  animation: enterBottom 0.32s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
+  animation: enterBottom 0.28s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
 }
 #task-page.enter-from-top {
-  animation: enterTop 0.32s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
+  animation: enterTop 0.28s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
 }
 
 @keyframes enterBottom {
-  from { transform: translateY(110vh); opacity: 0; }
+  from { transform: translateY(100vh); opacity: 1; }
   to   { transform: translateY(0);     opacity: 1; }
 }
 @keyframes enterTop {
-  from { transform: translateY(-110vh); opacity: 0; }
+  from { transform: translateY(-100vh); opacity: 1; }
   to   { transform: translateY(0);      opacity: 1; }
 }
 
 /* ── TASK CARD ── */
 #task-card {
   width: 100%;
-  background: var(--surface);
-  border: 2px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: 40px 48px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 24px 32px;
   cursor: pointer;
   position: relative;
   text-align: center;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+  box-shadow: none;
   user-select: none;
   -webkit-user-select: none;
-  transition: box-shadow 0.18s, transform 0.12s;
+  transition: opacity 0.12s;
 }
-#task-card:active { transform: scale(0.985); }
+#task-card:active { opacity: 0.7; }
 
-/* Color dot — shows split-group membership */
-#task-color-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  position: absolute;
-  top: 20px;
-  left: 24px;
-  display: none; /* shown by JS when task has a color */
-  flex-shrink: 0;
-}
+/* Color dot — hidden, replaced by colored text */
+#task-color-dot { display: none !important; }
 
 #task-text {
-  font-size: clamp(22px, 4vw, 34px);
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--text);
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--accent); /* overridden per-task by JS */
   word-break: break-word;
+  letter-spacing: -0.02em;
 }
 
 /* ── EMPTY STATES ── */
@@ -589,61 +604,30 @@ html, body {
   border-bottom: 1px solid var(--border);
   border-radius: var(--radius-sm);
   transition: background 0.12s;
-  cursor: default; /* selection disabled */
+  cursor: pointer;
   position: relative;
-  overflow: hidden; /* clips swipe-reveal */
 }
 .list-item:last-child { border-bottom: none; }
 .list-item:hover { background: var(--surface); }
 .list-item.is-current { background: var(--accent-dim); }
 .list-item.is-current:hover { background: var(--accent-dim); }
 
+/* Clicking active list item navigates to it */
+.list-item:not(.done) { cursor: pointer; }
+
 /* Drag states */
 .list-item.dragging { opacity: 0.35; }
 .list-item.drop-above::before { content: ''; position: absolute; top: -2px; left: 0; right: 0; height: 3px; background: var(--accent); border-radius: 2px; }
 .list-item.drop-below::after  { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 3px; background: var(--accent); border-radius: 2px; }
 
-/* ── SWIPE-TO-RESTORE on done items ──
-   The row slides left to reveal a green "Restore" button */
-.list-item.done {
-  cursor: default;
-  touch-action: pan-y; /* allow vertical scroll, we handle horizontal */
-}
+.list-item.done { cursor: default; }
+
 .list-item-inner {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   width: 100%;
-  background: inherit;
-  position: relative;
-  z-index: 1;
-  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
 }
-.list-item.done .list-item-inner {
-  /* swipe transform applied via JS */
-}
-.restore-btn-wrap {
-  position: absolute;
-  right: 0; top: 0; bottom: 0;
-  display: flex;
-  align-items: center;
-  padding-right: 10px;
-  z-index: 0;
-}
-.restore-btn {
-  background: var(--green);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 8px 18px;
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s;
-}
-.restore-btn:hover { background: #15803d; }
 
 .drag-handle { color: var(--text-dim); font-size: 18px; cursor: grab; padding: 2px 2px 0; flex-shrink: 0; line-height: 1; margin-top: 2px; touch-action: none; }
 .drag-handle:active { cursor: grabbing; }
@@ -681,8 +665,9 @@ html, body {
   font-family: var(--font); transition: all 0.12s; display: flex; align-items: center;
   justify-content: center; flex-shrink: 0; line-height: 1;
 }
-.list-action-btn.crush:hover { border-color: var(--green); color: var(--green); background: rgba(22,163,74,0.07); }
-.list-action-btn.del:hover   { border-color: var(--danger); color: var(--danger); background: rgba(229,57,53,0.07); }
+.list-action-btn.crush:hover   { border-color: var(--green); color: var(--green); background: rgba(22,163,74,0.07); }
+.list-action-btn.restore:hover { border-color: var(--green); color: var(--green); background: rgba(22,163,74,0.07); }
+.list-action-btn.del:hover     { border-color: var(--danger); color: var(--danger); background: rgba(229,57,53,0.07); }
 
 /* ── CONFETTI & FLASH ── */
 #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 999; }

@@ -53,11 +53,12 @@
 
     <!-- Stage clips the sliding page-unit -->
     <div id="stage">
+      <div id="stage-inner">
 
       <!-- The whole "page" — card + actions — slides as one unit -->
       <div id="task-page">
         <div id="task-card" onclick="handleCardClick()">
-          <!-- Color dot for split-group tasks -->
+          <!-- Color dot hidden, text is now colored -->
           <div id="task-color-dot"></div>
           <div id="task-text"></div>
         </div>
@@ -71,9 +72,10 @@
       </div>
       <div id="empty-done-msg">🎉 <strong>Queue empty.</strong> You crushed everything.</div>
 
+      </div><!-- /stage-inner -->
     </div>
 
-    <div id="version-label">v7</div>
+    <div id="version-label">v8</div>
     <button id="fab" onclick="openAddScreen()" title="Add task">+</button>
   </div>
 

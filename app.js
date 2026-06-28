@@ -30,7 +30,7 @@ const CRUSH_WORDS = ['CRUSHED! 💥','BOOM! 🔥','NAILED IT! ⚡','DONE! ✊','
 
 const PRIO_ORDER = { 'Urgent': 0, 'Easy': 1, 'Fun': 2 };
 const TIME_ORDER = { '5 min': 0, '15 min': 1, '30 min': 2 };
-const COLORS = ['#5c47f5','#0ea5e9','#f59e0b','#e53935','#16a34a','#9333ea','#ec4899','#06b6d4'];
+const COLORS = ['#5c47f5','#0ea5e9','#f59e0b','#e53935','#16a34a','#9333ea','#ec4899','#06b6d4','#84cc16','#f97316'];
 
 // ── STORAGE ──
 function save() {
@@ -49,6 +49,8 @@ function load() {
         .replace('1 hr','30 min')
       );
       t.tomorrow = false;
+      // Assign color to existing tasks that don't have one
+      if (!t.color && !t.parentId) t.color = randomUniqueColor(t.id);
     });
   } catch(e) { tasks = []; currentIndex = 0; }
   if (currentIndex >= activeTasks().length) currentIndex = 0;
@@ -59,10 +61,24 @@ function activeTasks() { return tasks.filter(t => !t.done); }
 function currentTask() { const a = activeTasks(); return a[currentIndex] || null; }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function uniqueColor() {
+
+function randomUniqueColor(excludeId) {
+  // Pick a color not already used by standalone tasks (not in a group)
+  const used = new Set(tasks.filter(t => t.color && !t.parentId && t.id !== excludeId).map(t => t.color));
+  const avail = COLORS.filter(c => !used.has(c));
+  return avail.length > 0 ? avail[Math.floor(Math.random() * avail.length)] : COLORS[Math.floor(Math.random() * COLORS.length)];
+}
+
+function uniqueGroupColor() {
+  // For split groups — pick a color not used by any task
   const used = new Set(tasks.filter(t => t.color).map(t => t.color));
   const avail = COLORS.filter(c => !used.has(c));
   return avail.length > 0 ? avail[0] : rand(COLORS);
+}
+
+// Get the display color for a task (own color or inherited from parent group)
+function taskDisplayColor(task) {
+  return task.color || 'var(--accent)';
 }
 
 // ── RENDER ──
@@ -91,15 +107,10 @@ function render() {
     emptyDone.style.display = 'none';
 
     document.getElementById('task-text').textContent = task.text;
+    document.getElementById('task-text').style.color = taskDisplayColor(task);
 
-    // Color dot — show if task belongs to a split group
-    const dot = document.getElementById('task-color-dot');
-    if (task.color) {
-      dot.style.display    = 'block';
-      dot.style.background = task.color;
-    } else {
-      dot.style.display = 'none';
-    }
+    // Color dot hidden — text is colored instead
+    document.getElementById('task-color-dot').style.display = 'none';
 
     renderQuickActions(task);
     renderSubtasks(task);
@@ -154,10 +165,7 @@ function animateToTask(newIdx, dir) {
     const task = currentTask();
     if (task) {
       document.getElementById('task-text').textContent = task.text;
-      // color dot
-      const dot = document.getElementById('task-color-dot');
-      if (task.color) { dot.style.display = 'block'; dot.style.background = task.color; }
-      else            { dot.style.display = 'none'; }
+      document.getElementById('task-text').style.color = taskDisplayColor(task);
     }
 
     // 3. Snap page to entry position (off-screen opposite), no transition
@@ -187,19 +195,20 @@ function animateToTask(newIdx, dir) {
   }, 300);
 }
 
-// ── TOUCH SWIPE — whole stage is the swipe zone ──
+// ── TOUCH SWIPE — whole screen is the swipe zone ──
 (function() {
   let startY = 0, startX = 0, startTime = 0;
   let dragging = false, deltaY = 0;
   const page  = () => document.getElementById('task-page');
-  const stage = document.getElementById('stage');
 
   function blocked(t) {
-    // Don't swipe when touching action pills, subtasks
-    return t.closest('#quick-actions') || t.closest('#subtask-list') || t.closest('#fab');
+    // Don't swipe when touching action pills, subtasks, overlays
+    return t.closest('#quick-actions') || t.closest('#subtask-list') || t.closest('#fab')
+        || t.closest('#list-overlay:not(.hidden)') || t.closest('#add-screen:not(.hidden)')
+        || t.closest('#split-modal:not(.hidden)');
   }
 
-  stage.addEventListener('touchstart', e => {
+  document.addEventListener('touchstart', e => {
     if (blocked(e.target)) return;
     startY    = e.touches[0].clientY;
     startX    = e.touches[0].clientX;
@@ -208,7 +217,7 @@ function animateToTask(newIdx, dir) {
     deltaY    = 0;
   }, { passive: true });
 
-  stage.addEventListener('touchmove', e => {
+  document.addEventListener('touchmove', e => {
     if (blocked(e.target) && !dragging) return;
     const dy = e.touches[0].clientY - startY;
     const dx = Math.abs(e.touches[0].clientX - startX);
@@ -219,16 +228,13 @@ function animateToTask(newIdx, dir) {
     const p = page();
     if (!p || activeTasks().length < 2 || isAnimating) return;
 
-    // Whole page follows finger — dampened
-    const pull  = Math.sign(dy) * Math.min(Math.abs(dy) * 0.55, 130);
-    const scale = 1 - Math.abs(pull) * 0.0004;
-    const alpha = 1 - Math.abs(pull) * 0.004;
+    // Whole page follows finger — no dampening, no opacity change
     p.classList.add('dragging');
-    p.style.transform = `translateY(${pull}px) scale(${scale})`;
-    p.style.opacity   = String(Math.max(0.25, alpha));
+    p.style.transform = `translateY(${dy}px)`;
+    p.style.opacity   = '1';
   }, { passive: true });
 
-  stage.addEventListener('touchend', () => {
+  document.addEventListener('touchend', () => {
     if (!dragging) return;
     dragging = false;
 
@@ -237,7 +243,7 @@ function animateToTask(newIdx, dir) {
     const dy     = deltaY;
     const elapsed = Date.now() - startTime;
     const isFlick = elapsed < 280 && Math.abs(dy) > 35;
-    const isSlide = Math.abs(dy) > 90;
+    const isSlide = Math.abs(dy) > 80;
 
     if (p) {
       p.classList.remove('dragging');
@@ -251,18 +257,18 @@ function animateToTask(newIdx, dir) {
     deltaY = 0;
   }, { passive: true });
 
-  stage.addEventListener('touchcancel', () => {
+  document.addEventListener('touchcancel', () => {
     dragging = false; deltaY = 0;
     const p = page();
     if (p) { p.classList.remove('dragging'); p.style.transform = ''; p.style.opacity = ''; }
   }, { passive: true });
 })();
 
-// ── MOUSE WHEEL — desktop gallery scroll ──
+// ── MOUSE WHEEL — desktop gallery scroll (whole document) ──
 (function() {
   let wheelCooldown = false;
 
-  document.getElementById('stage').addEventListener('wheel', e => {
+  document.addEventListener('wheel', e => {
     if (!document.getElementById('list-overlay').classList.contains('hidden')) return;
     if (!document.getElementById('add-screen').classList.contains('hidden')) return;
     if (!document.getElementById('split-modal').classList.contains('hidden')) return;
@@ -272,7 +278,7 @@ function animateToTask(newIdx, dir) {
 
     navTask(e.deltaY > 0 ? 1 : -1);
     wheelCooldown = true;
-    setTimeout(() => { wheelCooldown = false; }, 420);
+    setTimeout(() => { wheelCooldown = false; }, 380);
   }, { passive: true });
 })();
 
@@ -455,7 +461,7 @@ function confirmSplit() {
     .map(i => i.value.trim()).filter(Boolean);
   if (steps.length === 0) return;
   const task = currentTask(); if (!task) return;
-  const color = uniqueColor();
+  const color = uniqueGroupColor();
   task.color = color; task.parentId = task.parentId || null;
   const newTasks = steps.map(text => ({
     id: Date.now() + Math.random(), text, tags: [], done: false,
@@ -501,7 +507,10 @@ function submitTask() {
   const tags = [];
   if (addTimeTag) tags.push(addTimeTag);
   if (addPrioTag) tags.push(addPrioTag);
-  tasks.push({ id: Date.now(), text, tags, done: false, subtasks: [], color: null, created: Date.now() });
+  const newTask = { id: Date.now(), text, tags, done: false, subtasks: [], color: null, created: Date.now() };
+  // Assign a unique random color to every standalone task
+  newTask.color = randomUniqueColor(newTask.id);
+  tasks.push(newTask);
   if (activeTasks().length === 1) currentIndex = 0;
   save(); closeAddScreen(); render();
 }
@@ -600,26 +609,25 @@ function renderList() {
     const ddId      = `list-dd-${realIdx}`;
     const isCurrent = !task.done && currentTask() && task.id === currentTask().id;
 
-    // Done tasks — with swipe-to-restore wrapper
+    // Done tasks — with + restore button
     if (task.done) return `
       <div class="list-item done" data-idx="${realIdx}">
-        <div class="restore-btn-wrap">
-          <button class="restore-btn" onclick="restoreTask(${realIdx},event)">↩ Restore</button>
-        </div>
         <div class="list-item-inner">
           <div class="list-item-dot ${hasDot?'':'invisible'}" style="background:${dotColor}"></div>
           <div class="list-item-body"><div class="list-item-text">${esc(task.text)}</div></div>
           <div class="list-item-actions">
+            <button class="list-action-btn restore" onclick="restoreTask(${realIdx},event)" title="Restore">+</button>
             <button class="list-action-btn del" onclick="listDelete(${realIdx},event)" title="Delete">✕</button>
           </div>
         </div>
       </div>`;
 
-    // Active tasks — no onclick select (disabled)
+    // Active tasks — clickable to navigate to them
     return `
       <div class="list-item ${isCurrent?'is-current':''}"
            draggable="${currentSort==='manual'?'true':'false'}"
            data-idx="${realIdx}"
+           onclick="listNavigateToTask(${realIdx})"
            ondragstart="onDragStart(event,${realIdx})"
            ondragover="onDragOver(event,${realIdx})"
            ondrop="onDrop(event,${realIdx})"
@@ -628,7 +636,7 @@ function renderList() {
           <div class="drag-handle ${currentSort==='manual'?'':'hidden'}" onclick="event.stopPropagation()">⠿</div>
           <div class="list-item-dot ${hasDot?'':'invisible'}" style="background:${dotColor}"></div>
           <div class="list-item-body">
-            <div class="list-item-text">${esc(task.text)}</div>
+            <div class="list-item-text" style="color:${dotColor}">${esc(task.text)}</div>
             <div class="list-item-row2">
               <div class="list-dd" onclick="event.stopPropagation()">
                 <button class="list-tag-btn ${timeTag?'active-tag':''}"
@@ -664,55 +672,20 @@ function renderList() {
       </div>`;
   }).join('');
 
-  // Attach swipe-to-restore listeners to done rows
-  attachSwipeRestore();
+  // Done: no swipe-to-restore; use + button instead
 }
 
-// ── SWIPE TO RESTORE (done rows) ──
-function attachSwipeRestore() {
-  document.querySelectorAll('.list-item.done').forEach(row => {
-    const inner = row.querySelector('.list-item-inner');
-    if (!inner) return;
-    let startX = 0, startY = 0, swiping = false, currentX = 0;
-    const THRESHOLD = 80; // px to trigger restore
-
-    row.addEventListener('touchstart', e => {
-      startX   = e.touches[0].clientX;
-      startY   = e.touches[0].clientY;
-      swiping  = false;
-      currentX = 0;
-      inner.style.transition = 'none';
-    }, { passive: true });
-
-    row.addEventListener('touchmove', e => {
-      const dx = e.touches[0].clientX - startX;
-      const dy = Math.abs(e.touches[0].clientY - startY);
-      if (!swiping && Math.abs(dx) > 8 && Math.abs(dx) > dy) swiping = true;
-      if (!swiping) return;
-      // Only allow left swipe (negative dx)
-      currentX = Math.min(0, dx);
-      inner.style.transform = `translateX(${currentX}px)`;
-    }, { passive: true });
-
-    row.addEventListener('touchend', () => {
-      if (!swiping) return;
-      inner.style.transition = '';
-      if (currentX < -THRESHOLD) {
-        // Snap fully open to reveal restore button
-        inner.style.transform = `translateX(-110px)`;
-      } else {
-        // Snap back
-        inner.style.transform = 'translateX(0)';
-      }
-      swiping = false;
-    }, { passive: true });
-
-    row.addEventListener('touchcancel', () => {
-      swiping = false;
-      inner.style.transition = '';
-      inner.style.transform  = 'translateX(0)';
-    }, { passive: true });
-  });
+// ── NAVIGATE TO TASK FROM LIST ──
+function listNavigateToTask(idx) {
+  const task = tasks[idx];
+  if (!task || task.done) return;
+  const active = activeTasks();
+  const ai = active.indexOf(task);
+  if (ai === -1) return;
+  currentIndex = ai;
+  save();
+  closeList();
+  render();
 }
 
 // ── RESTORE TASK ──
