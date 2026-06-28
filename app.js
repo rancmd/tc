@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────
-//  TASK CRUSHER — app.js  v7
+//  TASK CRUSHER — app.js  v8b
 // ─────────────────────────────────────────────
 
 // ── STATE ──
@@ -30,7 +30,7 @@ const CRUSH_WORDS = ['CRUSHED! 💥','BOOM! 🔥','NAILED IT! ⚡','DONE! ✊','
 
 const PRIO_ORDER = { 'Urgent': 0, 'Easy': 1, 'Fun': 2 };
 const TIME_ORDER = { '5 min': 0, '15 min': 1, '30 min': 2 };
-const COLORS = ['#5c47f5','#0ea5e9','#f59e0b','#e53935','#16a34a','#9333ea','#ec4899','#06b6d4','#84cc16','#f97316'];
+const COLORS = ['#5c47f5','#0ea5e9','#f59e0b','#e53935','#16a34a','#9333ea','#ec4899','#06b6d4'];
 
 // ── STORAGE ──
 function save() {
@@ -49,8 +49,6 @@ function load() {
         .replace('1 hr','30 min')
       );
       t.tomorrow = false;
-      // Assign color to existing tasks that don't have one
-      if (!t.color && !t.parentId) t.color = randomUniqueColor(t.id);
     });
   } catch(e) { tasks = []; currentIndex = 0; }
   if (currentIndex >= activeTasks().length) currentIndex = 0;
@@ -61,33 +59,45 @@ function activeTasks() { return tasks.filter(t => !t.done); }
 function currentTask() { const a = activeTasks(); return a[currentIndex] || null; }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-
-function randomUniqueColor(excludeId) {
-  // Pick a color not already used by standalone tasks (not in a group)
-  const used = new Set(tasks.filter(t => t.color && !t.parentId && t.id !== excludeId).map(t => t.color));
-  const avail = COLORS.filter(c => !used.has(c));
-  return avail.length > 0 ? avail[Math.floor(Math.random() * avail.length)] : COLORS[Math.floor(Math.random() * COLORS.length)];
-}
-
-function uniqueGroupColor() {
-  // For split groups — pick a color not used by any task
+function uniqueColor() {
   const used = new Set(tasks.filter(t => t.color).map(t => t.color));
   const avail = COLORS.filter(c => !used.has(c));
   return avail.length > 0 ? avail[0] : rand(COLORS);
 }
 
-// Get the display color for a task (own color or inherited from parent group)
-function taskDisplayColor(task) {
-  return task.color || 'var(--accent)';
+// ── RENDER ──
+function makeSlidePage(task) {
+  const div = document.createElement('div');
+  div.className = 'slide-page';
+  div.innerHTML = `
+    <div id="task-card">
+      <div id="task-color-dot" style="display:none"></div>
+      <div id="task-text">${esc(task.text)}</div>
+    </div>
+    <div id="quick-actions"></div>
+    <div id="subtask-list"></div>
+  `;
+  return div;
 }
 
-// ── RENDER ──
 function render() {
   const active = activeTasks();
   const done   = tasks.filter(t => t.done);
   const task   = currentTask();
 
-  // Top-right nav counter: "1 / 3" — no done count here
+  // Update app background color
+  const appEl = document.getElementById('app');
+  if (task) {
+    appEl.style.setProperty('--task-color', task.color || 'var(--accent)');
+    // Also set background directly for instant switch
+    appEl.style.background = task.color || 'var(--accent)';
+  } else if (done.length > 0) {
+    appEl.style.background = '#16a34a';
+  } else {
+    appEl.style.background = '#5c47f5';
+  }
+
+  // Top-right nav counter
   const navCount = document.getElementById('task-nav-count');
   if (active.length > 0) {
     navCount.textContent = (currentIndex + 1) + ' / ' + active.length;
@@ -97,27 +107,25 @@ function render() {
     navCount.textContent = '';
   }
 
-  const taskPage  = document.getElementById('task-page');
+  const slot      = document.getElementById('slide-slot');
   const emptyCard = document.getElementById('empty-card');
   const emptyDone = document.getElementById('empty-done-msg');
 
   if (task) {
-    taskPage.style.display  = 'flex';
     emptyCard.style.display = 'none';
     emptyDone.style.display = 'none';
 
-    document.getElementById('task-text').textContent = task.text;
-    document.getElementById('task-text').style.color = taskDisplayColor(task);
+    // Build the slide page directly in the slot (no animation on initial render)
+    slot.innerHTML = '';
+    const page = makeSlidePage(task);
+    slot.appendChild(page);
 
-    // Color dot hidden — text is colored instead
-    document.getElementById('task-color-dot').style.display = 'none';
-
-    renderQuickActions(task);
-    renderSubtasks(task);
+    // Render actions + subtasks into the new page
+    renderQuickActionsInto(task, page.querySelector('#quick-actions'));
+    renderSubtasksInto(task, page.querySelector('#subtask-list'));
 
   } else {
-    taskPage.style.display = 'none';
-
+    slot.innerHTML = '';
     if (done.length > 0) {
       emptyCard.style.display = 'none';
       emptyDone.style.display = 'block';
@@ -130,7 +138,7 @@ function render() {
 }
 
 // ══════════════════════════════════════════
-//  GALLERY NAV — whole page slides as one unit
+//  ELEVATOR NAV — two pages move together
 // ══════════════════════════════════════════
 let isAnimating = false;
 
@@ -138,74 +146,64 @@ function navTask(dir) {
   if (isAnimating) return;
   const active = activeTasks();
   if (active.length < 2) return;
-  // Loop
   const newIdx = (currentIndex + dir + active.length) % active.length;
   animateToTask(newIdx, dir);
 }
 
 function animateToTask(newIdx, dir) {
   if (isAnimating) return;
-  const page = document.getElementById('task-page');
   isAnimating = true;
 
-  // 1. Fly current page off screen
-  page.classList.remove('dragging');
-  page.style.transition = '';
-  page.style.transform  = '';
-  page.style.opacity    = '';
+  const slot    = document.getElementById('slide-slot');
+  const oldPage = slot.querySelector('.slide-page');
+  const newTask = activeTasks()[newIdx];
+  if (!newTask) { isAnimating = false; return; }
 
-  const exitClass = dir > 0 ? 'exit-up' : 'exit-down';
-  page.classList.add(exitClass);
+  // Build incoming page (off-screen)
+  const newPage = makeSlidePage(newTask);
+  slot.appendChild(newPage);
+  renderQuickActionsInto(newTask, newPage.querySelector('#quick-actions'));
+  renderSubtasksInto(newTask, newPage.querySelector('#subtask-list'));
 
+  // Update state + background immediately (background crossfades via CSS transition)
+  currentIndex = newIdx;
+  save();
+  const appEl = document.getElementById('app');
+  appEl.style.background = newTask.color || 'var(--accent)';
+
+  // Update nav counter
+  const active2 = activeTasks();
+  document.getElementById('task-nav-count').textContent = (currentIndex + 1) + ' / ' + active2.length;
+
+  // Kick off animations simultaneously
+  if (oldPage) {
+    oldPage.classList.add(dir > 0 ? 'slide-out-up' : 'slide-out-down');
+  }
+  newPage.classList.add(dir > 0 ? 'slide-in-from-bottom' : 'slide-in-from-top');
+
+  const DURATION = 380;
   setTimeout(() => {
-    // 2. Swap content
-    currentIndex = newIdx;
-    save();
-
-    const task = currentTask();
-    if (task) {
-      document.getElementById('task-text').textContent = task.text;
-      document.getElementById('task-text').style.color = taskDisplayColor(task);
-    }
-
-    // 3. Snap page to entry position (off-screen opposite), no transition
-    page.classList.remove(exitClass);
-    page.style.transition = 'none';
-    page.style.opacity    = '0';
-    page.style.transform  = dir > 0 ? 'translateY(110vh)' : 'translateY(-110vh)';
-
-    void page.offsetWidth; // force reflow
-
-    // 4. Animate in
-    page.style.transition = '';
-    page.style.transform  = '';
-    page.style.opacity    = '';
-    page.classList.add(dir > 0 ? 'enter-from-bottom' : 'enter-from-top');
-
-    // Update nav counter + actions
-    const navCount = document.getElementById('task-nav-count');
-    const active2  = activeTasks();
-    navCount.textContent = (currentIndex + 1) + ' / ' + active2.length;
-    if (task) { renderQuickActions(task); renderSubtasks(task); }
-
-    setTimeout(() => {
-      page.classList.remove('enter-from-bottom', 'enter-from-top');
-      isAnimating = false;
-    }, 340);
-  }, 300);
+    if (oldPage) oldPage.remove();
+    newPage.classList.remove('slide-in-from-bottom', 'slide-in-from-top');
+    isAnimating = false;
+  }, DURATION);
 }
 
 // ── TOUCH SWIPE — whole screen is the swipe zone ──
 (function() {
   let startY = 0, startX = 0, startTime = 0;
   let dragging = false, deltaY = 0;
-  const page  = () => document.getElementById('task-page');
+
+  function currentPage() {
+    return document.querySelector('#slide-slot .slide-page');
+  }
 
   function blocked(t) {
-    // Don't swipe when touching action pills, subtasks, overlays
     return t.closest('#quick-actions') || t.closest('#subtask-list') || t.closest('#fab')
-        || t.closest('#list-overlay:not(.hidden)') || t.closest('#add-screen:not(.hidden)')
-        || t.closest('#split-modal:not(.hidden)');
+        || t.closest('#list-overlay') && !document.getElementById('list-overlay').classList.contains('hidden')
+        || t.closest('#add-screen') && !document.getElementById('add-screen').classList.contains('hidden')
+        || t.closest('#split-modal') && !document.getElementById('split-modal').classList.contains('hidden')
+        || t.closest('#delete-modal') && !document.getElementById('delete-modal').classList.contains('hidden');
   }
 
   document.addEventListener('touchstart', e => {
@@ -225,30 +223,30 @@ function animateToTask(newIdx, dir) {
     if (!dragging) return;
 
     deltaY = dy;
-    const p = page();
+    const p = currentPage();
     if (!p || activeTasks().length < 2 || isAnimating) return;
 
-    // Whole page follows finger — no dampening, no opacity change
-    p.classList.add('dragging');
-    p.style.transform = `translateY(${dy}px)`;
-    p.style.opacity   = '1';
+    p.style.transition = 'none';
+    p.style.transform  = `translateY(${dy}px)`;
   }, { passive: true });
 
   document.addEventListener('touchend', () => {
     if (!dragging) return;
     dragging = false;
 
-    const p      = page();
-    const active = activeTasks();
-    const dy     = deltaY;
+    const p       = currentPage();
+    const active  = activeTasks();
+    const dy      = deltaY;
     const elapsed = Date.now() - startTime;
     const isFlick = elapsed < 280 && Math.abs(dy) > 35;
     const isSlide = Math.abs(dy) > 80;
 
-    if (p) {
-      p.classList.remove('dragging');
+    if (p && !(isFlick || isSlide)) {
+      p.style.transition = 'transform 0.28s cubic-bezier(0.4,0,0.2,1)';
+      p.style.transform  = '';
+    } else if (p) {
       p.style.transform = '';
-      p.style.opacity   = '';
+      p.style.transition = '';
     }
 
     if ((isFlick || isSlide) && active.length > 1 && !isAnimating) {
@@ -259,16 +257,16 @@ function animateToTask(newIdx, dir) {
 
   document.addEventListener('touchcancel', () => {
     dragging = false; deltaY = 0;
-    const p = page();
-    if (p) { p.classList.remove('dragging'); p.style.transform = ''; p.style.opacity = ''; }
+    const p = currentPage();
+    if (p) { p.style.transition = ''; p.style.transform = ''; }
   }, { passive: true });
 })();
 
-// ── MOUSE WHEEL — desktop gallery scroll (whole document) ──
+// ── MOUSE WHEEL — desktop gallery scroll ──
 (function() {
   let wheelCooldown = false;
 
-  document.addEventListener('wheel', e => {
+  document.getElementById('stage').addEventListener('wheel', e => {
     if (!document.getElementById('list-overlay').classList.contains('hidden')) return;
     if (!document.getElementById('add-screen').classList.contains('hidden')) return;
     if (!document.getElementById('split-modal').classList.contains('hidden')) return;
@@ -278,13 +276,17 @@ function animateToTask(newIdx, dir) {
 
     navTask(e.deltaY > 0 ? 1 : -1);
     wheelCooldown = true;
-    setTimeout(() => { wheelCooldown = false; }, 380);
+    setTimeout(() => { wheelCooldown = false; }, 420);
   }, { passive: true });
 })();
 
 // ── QUICK ACTIONS ──
 function renderQuickActions(task) {
   const el = document.getElementById('quick-actions');
+  if (el) renderQuickActionsInto(task, el);
+}
+function renderQuickActionsInto(task, el) {
+  if (!el) return;
   const timeOpts = ['5 min','15 min','30 min'];
   const prioOpts = ['Urgent','Easy','Fun'];
   const timeTag  = (task.tags || []).find(t => timeOpts.includes(t));
@@ -293,7 +295,7 @@ function renderQuickActions(task) {
   el.innerHTML = `
     <div class="qa-dropdown" id="dd-time">
       <button class="qa-pill ${timeTag ? 'active' : ''}" onclick="toggleDropdown('dd-time')" title="${timeTag || 'Set time'}">
-        🕐${timeTag ? `<span class="pill-label">${timeTag}</span>` : ''}
+        \u{1F550}${timeTag ? '<span class="pill-label">' + timeTag + '</span>' : ''}
       </button>
       <div class="qa-dropdown-menu" id="dd-time-menu">
         <button class="qa-menu-item ${timeTag==='5 min'?'selected':''}"  onclick="setTime('5 min')">5 min</button>
@@ -304,7 +306,7 @@ function renderQuickActions(task) {
     </div>
     <div class="qa-dropdown" id="dd-prio">
       <button class="qa-pill ${prioTag ? 'active' : ''}" onclick="toggleDropdown('dd-prio')" title="${prioTag || 'Set priority'}">
-        🔥${prioTag ? `<span class="pill-label">${prioTag}</span>` : ''}
+        \u{1F525}${prioTag ? '<span class="pill-label">' + prioTag + '</span>' : ''}
       </button>
       <div class="qa-dropdown-menu" id="dd-prio-menu">
         <button class="qa-menu-item ${prioTag==='Urgent'?'selected':''}" onclick="setPrio('Urgent')">Urgent</button>
@@ -313,82 +315,34 @@ function renderQuickActions(task) {
         ${prioTag ? '<div class="qa-menu-sep"></div><button class="qa-menu-item" onclick="clearPrio()">Clear</button>' : ''}
       </div>
     </div>
-    <button class="qa-pill" onclick="openSplitModal()" title="Split task">✂️</button>
-    <button class="qa-pill danger" onclick="deleteCurrentTask()" title="Delete task">🗑️</button>
+    <button class="qa-pill" onclick="openSplitModal()" title="Split task">&#x2702;&#xFE0F;</button>
+    <button class="qa-pill danger" onclick="openDeleteModal()" title="Delete task">&#x1F5D1;&#xFE0F;</button>
   `;
 }
 
-function toggleDropdown(id) {
-  const menuId = id + '-menu';
-  const isOpen = document.getElementById(menuId)?.classList.contains('open');
-  ['dd-time-menu','dd-prio-menu'].forEach(m => document.getElementById(m)?.classList.remove('open'));
-  if (!isOpen) document.getElementById(menuId)?.classList.add('open');
-  setTimeout(() => document.addEventListener('click', closeDropdownsOutside, { once: true }), 0);
-}
-function closeDropdownsOutside(e) {
-  if (!e.target.closest('.qa-dropdown') && !e.target.closest('.list-dd')) closeAllDropdowns();
-}
-function closeAllDropdowns() {
-  ['dd-time-menu','dd-prio-menu','add-dd-time-menu','add-dd-prio-menu']
-    .forEach(m => document.getElementById(m)?.classList.remove('open'));
-  closeAllListDropdowns();
-}
-
-// ── LIST ROW DROPDOWNS ──
-function toggleListDd(id, event) {
-  event && event.stopPropagation();
-  const el = document.getElementById(id);
-  if (!el) return;
-  const isOpen = el.classList.contains('open');
-  closeAllListDropdowns();
-  if (!isOpen) {
-    el.classList.add('open');
-    openListDd = id;
-    setTimeout(() => document.addEventListener('click', closeListDdOutside, { once: true }), 0);
-  }
-}
-function closeListDdOutside(e) {
-  if (!e.target.closest('.list-dd')) closeAllListDropdowns();
-}
-function closeAllListDropdowns() {
-  document.querySelectorAll('.list-dd-menu.open').forEach(m => m.classList.remove('open'));
-  openListDd = null;
-}
-
-// ── TAG HELPERS ──
-function setTime(tag) {
-  const task = currentTask(); if (!task) return;
-  task.tags = (task.tags||[]).filter(t => !['5 min','15 min','30 min'].includes(t));
-  task.tags.push(tag); save(); closeAllDropdowns(); render();
-}
-function clearTime() {
-  const task = currentTask(); if (!task) return;
-  task.tags = (task.tags||[]).filter(t => !['5 min','15 min','30 min'].includes(t));
-  save(); closeAllDropdowns(); render();
-}
-function setPrio(tag) {
-  const task = currentTask(); if (!task) return;
-  task.tags = (task.tags||[]).filter(t => !['Urgent','Easy','Fun'].includes(t));
-  task.tags.push(tag); save(); closeAllDropdowns(); render();
-}
-function clearPrio() {
-  const task = currentTask(); if (!task) return;
-  task.tags = (task.tags||[]).filter(t => !['Urgent','Easy','Fun'].includes(t));
-  save(); closeAllDropdowns(); render();
-}
-
-// ── SUBTASKS ──
 function renderSubtasks(task) {
   const el = document.getElementById('subtask-list');
+  if (el) renderSubtasksInto(task, el);
+}
+function renderSubtasksInto(task, el) {
+  if (!el) return;
   if (!task.subtasks || task.subtasks.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = task.subtasks.map((st, i) => `
     <div class="subtask-card ${st.done ? 'done' : ''}" onclick="crushSubtask(${i})">
       <div class="subtask-dot" style="background:${task.color || 'var(--accent)'}"></div>
       <span class="subtask-text-label">${esc(st.text)}</span>
-      <div class="subtask-crush-hint">✊ Crush it!</div>
-      <button class="subtask-del" onclick="event.stopPropagation();deleteSubtask(${i})" title="Delete step">✕</button>
+      <div class="subtask-crush-hint">\u{1F44A} Crush it!</div>
+      <button class="subtask-del" onclick="event.stopPropagation();deleteSubtask(${i})" title="Delete step">\u2715</button>
     </div>
   `).join('');
+}
+
+// ── CRUSH ──
+// Clicking anywhere on stage (except pills/subtasks) crushes the task
+function handleStageClick(e) {
+  if (e.target.closest('#quick-actions') || e.target.closest('#subtask-list')) return;
+  if (e.target.closest('#empty-card') || e.target.closest('#empty-done-msg')) return;
+  crushTask();
 }
 
 // ── CRUSH ──
@@ -409,25 +363,69 @@ function crushTask() {
   setTimeout(() => { page.style.pointerEvents = ''; render(); }, 1400);
 }
 
+function openAllDoneModal() {
+  // Reuse delete modal for the "all steps done" confirmation
+  _deleteTarget = '_crush_main_';
+  document.getElementById('delete-body').textContent = 'All steps are done. Crush the main task too?';
+  document.getElementById('delete-title').textContent = 'All done! 🎉';
+  document.getElementById('delete-icon').textContent = '✊';
+  document.getElementById('delete-confirm-btn').textContent = 'Crush it!';
+  document.getElementById('delete-modal').classList.remove('hidden');
+}
+
 function crushSubtask(idx) {
   const task = currentTask(); if (!task || !task.subtasks[idx]) return;
   task.subtasks[idx].done = true;
   save(); playConfetti(true); renderSubtasks(task);
   if (task.subtasks.every(s => s.done)) {
-    setTimeout(() => { if (confirm('All steps done! Crush the main task?')) crushTask(); }, 500);
+    setTimeout(() => { openAllDoneModal(); }, 500);
   }
 }
 
 // ── DELETE ──
-function deleteCurrentTask() {
-  const task = currentTask(); if (!task) return;
+let _deleteTarget = null; // 'task' | { type:'list', idx }
+
+function openDeleteModal(target) {
+  _deleteTarget = target || 'task';
+  const task = (typeof target === 'object' && target.type === 'list')
+    ? tasks[target.idx]
+    : currentTask();
+  if (!task) return;
   closeAllDropdowns();
-  if (!confirm('Delete this task?')) return;
-  tasks = tasks.filter(t => t !== task);
-  const remaining = activeTasks();
-  currentIndex = remaining.length > 0 ? currentIndex % remaining.length : 0;
-  save(); render();
+  document.getElementById('delete-body').textContent = task.text;
+  document.getElementById('delete-modal').classList.remove('hidden');
 }
+function closeDeleteModal() {
+  document.getElementById('delete-modal').classList.add('hidden');
+  _deleteTarget = null;
+}
+function confirmDeleteModal() {
+  const target = _deleteTarget;
+  closeDeleteModal();
+  if (!target) return;
+  if (target === '_crush_main_') {
+    // Reset modal button text
+    document.getElementById('delete-title').textContent = 'Delete task?';
+    document.getElementById('delete-icon').textContent = '\u{1F5D1}\uFE0F';
+    document.getElementById('delete-confirm-btn').textContent = 'Delete';
+    crushTask();
+    return;
+  }
+  if (typeof target === 'object' && target.type === 'list') {
+    // Direct delete bypassing modal re-trigger
+    tasks.splice(target.idx, 1);
+    const remaining = activeTasks();
+    currentIndex = remaining.length > 0 ? currentIndex % remaining.length : 0;
+    save(); closeAllListDropdowns(); renderList(); render();
+  } else {
+    const task = currentTask(); if (!task) return;
+    tasks = tasks.filter(t => t !== task);
+    const remaining = activeTasks();
+    currentIndex = remaining.length > 0 ? currentIndex % remaining.length : 0;
+    save(); render();
+  }
+}
+function deleteCurrentTask() { openDeleteModal('task'); }
 function deleteSubtask(idx) {
   const task = currentTask(); if (!task) return;
   task.subtasks.splice(idx, 1); save(); renderSubtasks(task);
@@ -446,22 +444,47 @@ function openSplitModal() {
   setTimeout(() => wrap.querySelector('.split-input')?.focus(), 100);
 }
 function closeSplitModal() { document.getElementById('split-modal').classList.add('hidden'); }
-function addSplitInput() {
+function addSplitInput(autoFocus = false) {
   const wrap = document.getElementById('split-inputs-wrap');
   const inp  = document.createElement('input');
   inp.type = 'text'; inp.className = 'split-input';
   inp.placeholder = 'A smaller step…'; inp.maxLength = 140;
+  // Auto-add next step when typing in the last input
+  inp.addEventListener('input', () => {
+    const inputs = wrap.querySelectorAll('.split-input');
+    if (inp === inputs[inputs.length - 1] && inp.value.trim().length > 0) {
+      // Only add if there isn't already an empty last input
+      addSplitInput(false);
+    }
+  });
   inp.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { addSplitInput(); setTimeout(() => wrap.lastChild.focus(), 50); }
+    if (e.key === 'Enter') {
+      const inputs = wrap.querySelectorAll('.split-input');
+      const idx = Array.from(inputs).indexOf(inp);
+      const next = inputs[idx + 1];
+      if (next) { next.focus(); }
+      else { addSplitInput(true); }
+    }
+    // Delete empty input on backspace if it's not the first two
+    if (e.key === 'Backspace' && inp.value === '') {
+      const inputs = wrap.querySelectorAll('.split-input');
+      if (inputs.length > 2 && inp === inputs[inputs.length - 1]) {
+        e.preventDefault();
+        inp.remove();
+        const prev = wrap.querySelectorAll('.split-input');
+        prev[prev.length - 1]?.focus();
+      }
+    }
   });
   wrap.appendChild(inp);
+  if (autoFocus) setTimeout(() => inp.focus(), 30);
 }
 function confirmSplit() {
   const steps = Array.from(document.querySelectorAll('.split-input'))
     .map(i => i.value.trim()).filter(Boolean);
   if (steps.length === 0) return;
   const task = currentTask(); if (!task) return;
-  const color = uniqueGroupColor();
+  const color = uniqueColor();
   task.color = color; task.parentId = task.parentId || null;
   const newTasks = steps.map(text => ({
     id: Date.now() + Math.random(), text, tags: [], done: false,
@@ -507,10 +530,7 @@ function submitTask() {
   const tags = [];
   if (addTimeTag) tags.push(addTimeTag);
   if (addPrioTag) tags.push(addPrioTag);
-  const newTask = { id: Date.now(), text, tags, done: false, subtasks: [], color: null, created: Date.now() };
-  // Assign a unique random color to every standalone task
-  newTask.color = randomUniqueColor(newTask.id);
-  tasks.push(newTask);
+  tasks.push({ id: Date.now(), text, tags, done: false, subtasks: [], color: null, created: Date.now() });
   if (activeTasks().length === 1) currentIndex = 0;
   save(); closeAddScreen(); render();
 }
@@ -609,20 +629,20 @@ function renderList() {
     const ddId      = `list-dd-${realIdx}`;
     const isCurrent = !task.done && currentTask() && task.id === currentTask().id;
 
-    // Done tasks — with + restore button
+    // Done tasks — restore (o) + delete (x)
     if (task.done) return `
       <div class="list-item done" data-idx="${realIdx}">
         <div class="list-item-inner">
           <div class="list-item-dot ${hasDot?'':'invisible'}" style="background:${dotColor}"></div>
           <div class="list-item-body"><div class="list-item-text">${esc(task.text)}</div></div>
           <div class="list-item-actions">
-            <button class="list-action-btn restore" onclick="restoreTask(${realIdx},event)" title="Restore">+</button>
-            <button class="list-action-btn del" onclick="listDelete(${realIdx},event)" title="Delete">✕</button>
+            <button class="list-action-btn restore" onclick="restoreTask(${realIdx},event)" title="Restore">o</button>
+            <button class="list-action-btn del" onclick="openDeleteModal({type:'list',idx:${realIdx}})" title="Delete">✕</button>
           </div>
         </div>
       </div>`;
 
-    // Active tasks — clickable to navigate to them
+    // Active tasks — click row to navigate, with colored text
     return `
       <div class="list-item ${isCurrent?'is-current':''}"
            draggable="${currentSort==='manual'?'true':'false'}"
@@ -666,26 +686,12 @@ function renderList() {
           </div>
           <div class="list-item-actions" onclick="event.stopPropagation()">
             <button class="list-action-btn crush" onclick="listCrush(${realIdx},event)" title="Crush">✓</button>
-            <button class="list-action-btn del"   onclick="listDelete(${realIdx},event)" title="Delete">✕</button>
+            <button class="list-action-btn del"   onclick="openDeleteModal({type:'list',idx:${realIdx}})" title="Delete">✕</button>
           </div>
         </div>
       </div>`;
   }).join('');
 
-  // Done: no swipe-to-restore; use + button instead
-}
-
-// ── NAVIGATE TO TASK FROM LIST ──
-function listNavigateToTask(idx) {
-  const task = tasks[idx];
-  if (!task || task.done) return;
-  const active = activeTasks();
-  const ai = active.indexOf(task);
-  if (ai === -1) return;
-  currentIndex = ai;
-  save();
-  closeList();
-  render();
 }
 
 // ── RESTORE TASK ──
@@ -712,13 +718,21 @@ function listCrush(idx, event) {
 }
 function listDelete(idx, event) {
   event && event.stopPropagation();
-  tasks.splice(idx, 1);
-  const remaining = activeTasks();
-  currentIndex = remaining.length > 0 ? currentIndex % remaining.length : 0;
-  save(); closeAllListDropdowns(); renderList(); render();
+  // If called directly (from confirmDeleteModal or done row ✕), do the delete
+  if (event === null || (event && event._confirmed)) {
+    tasks.splice(idx, 1);
+    const remaining = activeTasks();
+    currentIndex = remaining.length > 0 ? currentIndex % remaining.length : 0;
+    save(); closeAllListDropdowns(); renderList(); render();
+  } else {
+    // Show confirm modal
+    event && event.stopPropagation();
+    openDeleteModal({ type: 'list', idx });
+  }
 }
 function clearAllDone() {
-  if (!confirm('Clear all completed tasks?')) return;
+  // Confirmed via inline check (small destructive action in admin view)
+  if (!window.confirm('Clear all completed tasks?')) return;
   tasks = tasks.filter(t => !t.done);
   currentIndex = 0; save(); renderList(); render();
 }
@@ -903,7 +917,7 @@ function showCrushFlash() {
 
 // ── KEYBOARD ──
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeAddScreen(); closeList(); closeSplitModal(); closeAllDropdowns(); }
+  if (e.key === 'Escape') { closeAddScreen(); closeList(); closeSplitModal(); closeDeleteModal(); closeAllDropdowns(); }
   if (e.key === 'Enter') {
     const addScreen = document.getElementById('add-screen');
     if (!addScreen.classList.contains('hidden')) submitTask();
@@ -920,6 +934,9 @@ document.addEventListener('keydown', e => {
 
 document.getElementById('split-modal').addEventListener('click', function(e) {
   if (e.target === this) this.classList.add('hidden');
+});
+document.getElementById('delete-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeDeleteModal();
 });
 document.addEventListener('click', e => {
   if (!e.target.closest('.qa-dropdown')) closeAllDropdowns();

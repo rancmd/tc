@@ -51,31 +51,23 @@
       </div>
     </div>
 
-    <!-- Stage clips the sliding page-unit -->
-    <div id="stage">
-      <div id="stage-inner">
+    <!-- Stage: clicking anywhere (except actions) crushes the task -->
+    <div id="stage" onclick="handleStageClick(event)">
 
-      <!-- The whole "page" — card + actions — slides as one unit -->
-      <div id="task-page">
-        <div id="task-card" onclick="handleCardClick()">
-          <!-- Color dot hidden, text is now colored -->
-          <div id="task-color-dot"></div>
-          <div id="task-text"></div>
-        </div>
-        <div id="quick-actions"></div>
-        <div id="subtask-list"></div>
+      <!-- Elevator slide slot: outgoing + incoming pages animate simultaneously -->
+      <div id="slide-slot">
+        <!-- Active slide page rendered here by JS -->
       </div>
 
-      <!-- Empty states sit outside the sliding page -->
+      <!-- Empty states (shown when no tasks) -->
       <div id="empty-card">
         <div id="empty-prompt"></div>
       </div>
       <div id="empty-done-msg">🎉 <strong>Queue empty.</strong> You crushed everything.</div>
 
-      </div><!-- /stage-inner -->
     </div>
 
-    <div id="version-label">v8</div>
+    <div id="version-label">v8b</div>
     <button id="fab" onclick="openAddScreen()" title="Add task">+</button>
   </div>
 
@@ -121,8 +113,20 @@
       </div>
       <div id="split-parent-label"></div>
       <div id="split-inputs-wrap"></div>
-      <button class="split-add-step" onclick="addSplitInput()">+ Add step</button>
       <button id="split-confirm" onclick="confirmSplit()">Done — split it</button>
+    </div>
+  </div>
+
+  <!-- ── DELETE CONFIRM MODAL ── -->
+  <div id="delete-modal" class="hidden">
+    <div id="delete-panel">
+      <div id="delete-icon">🗑️</div>
+      <div id="delete-title">Delete task?</div>
+      <div id="delete-body"></div>
+      <div id="delete-actions">
+        <button id="delete-cancel" onclick="closeDeleteModal()">Cancel</button>
+        <button id="delete-confirm-btn" onclick="confirmDeleteModal()">Delete</button>
+      </div>
     </div>
   </div>
 
