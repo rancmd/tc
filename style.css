@@ -44,9 +44,7 @@ html, body {
   align-items: center;
   position: relative;
   overflow: hidden;
-  /* Smooth background color transition between tasks */
-  background: var(--task-color);
-  transition: background 0.35s cubic-bezier(0.4,0,0.2,1);
+  background: #5c47f5; /* fallback; real color set per slide-page */
 }
 
 /* ── TOP BAR ── */
@@ -58,8 +56,10 @@ html, body {
   padding: 26px 28px 0;
   flex-shrink: 0;
   position: relative;
-  z-index: 10;
+  z-index: 20;
+  pointer-events: none; /* let clicks pass through to slide-page */
 }
+#top-bar > * { pointer-events: auto; }
 
 #logo {
   font-size: 13px;
@@ -112,106 +112,44 @@ html, body {
 #stage {
   flex: 1;
   width: 100%;
-  max-width: 100%;
   position: relative;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Stage is the crush target too */
-  cursor: pointer;
 }
 
-/* Inner centering wrapper */
-#stage-inner {
-  width: 100%;
-  max-width: 680px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  height: 100%;
-  overflow: hidden;
-  /* not clickable itself — stage handles click */
-  pointer-events: none;
-}
-#stage-inner > * { pointer-events: auto; }
-
-/* ── TASK PAGE — card + actions slide as ONE unit ── */
-#task-page {
-  width: 100%;
-  padding: 0 24px 90px;
-  display: none; /* shown by JS when task exists */
-  flex-direction: column;
-  align-items: center;
-  will-transform: transform;
-}
-
-/* Dragging — follow finger with no transition */
-#task-page.dragging {
-  transition: none !important;
-}
-
-/* ── ELEVATOR ANIMATION — two slides move simultaneously ── */
-/* The "slot" container holds current + next page stacked */
+/* ── SLIDE SLOT — the elevator shaft ── */
 #slide-slot {
   position: absolute;
   inset: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.slide-page {
-  position: absolute;
-  width: 100%;
-  max-width: 680px;
-  padding: 0 24px 90px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   will-change: transform;
 }
 
-/* When animating — both pages move together */
-.slide-page.is-exiting {
-  animation: none;
-}
-.slide-page.slide-out-up {
-  animation: slideOutUp 0.38s cubic-bezier(0.4,0,0.2,1) forwards;
-}
-.slide-page.slide-out-down {
-  animation: slideOutDown 0.38s cubic-bezier(0.4,0,0.2,1) forwards;
-}
-.slide-page.slide-in-from-bottom {
-  animation: slideInFromBottom 0.38s cubic-bezier(0.4,0,0.2,1) forwards;
-}
-.slide-page.slide-in-from-top {
-  animation: slideInFromTop 0.38s cubic-bezier(0.4,0,0.2,1) forwards;
+/* Each slide-page is a full-screen colored panel */
+.slide-page {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
 }
 
-@keyframes slideOutUp {
-  from { transform: translateY(0); }
-  to   { transform: translateY(-100vh); }
-}
-@keyframes slideOutDown {
-  from { transform: translateY(0); }
-  to   { transform: translateY(100vh); }
-}
-@keyframes slideInFromBottom {
-  from { transform: translateY(100vh); }
-  to   { transform: translateY(0); }
-}
-@keyframes slideInFromTop {
-  from { transform: translateY(-100vh); }
-  to   { transform: translateY(0); }
+/* Content wrapper — centers text, limits width */
+.slide-content {
+  width: 100%;
+  max-width: 680px;
+  padding: 0 32px 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
 }
 
-/* Drag: move the slide slot itself */
-#slide-slot.dragging {
-  transition: none !important;
+/* Transition class — added by JS to trigger the slide */
+.slide-page.is-animating {
+  transition: transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 
 /* ── TASK CARD ── */
 #task-card {
@@ -251,6 +189,8 @@ html, body {
   display: none;
   padding: 0 40px;
   text-align: center;
+  z-index: 5;
+  pointer-events: none;
 }
 #empty-prompt {
   font-size: clamp(20px, 3.5vw, 28px);
@@ -272,11 +212,13 @@ html, body {
   display: none;
   line-height: 1.6;
   padding: 0 24px;
+  z-index: 5;
+  pointer-events: none;
 }
 #empty-done-msg strong { color: #ffffff; font-weight: 500; }
 
 /* ── QUICK ACTIONS (inside task-page) ── */
-#quick-actions {
+.qa-actions {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -358,7 +300,7 @@ html, body {
 .qa-menu-sep { height: 1px; background: var(--border); margin: 4px 2px; }
 
 /* ── SUBTASKS (inside task-page) ── */
-#subtask-list {
+.subtask-list-inner {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -367,8 +309,8 @@ html, body {
   max-height: 220px;
   overflow-y: auto;
 }
-#subtask-list::-webkit-scrollbar { width: 3px; }
-#subtask-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.subtask-list-inner::-webkit-scrollbar { width: 3px; }
+.subtask-list-inner::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 .subtask-card {
   display: flex;
@@ -833,8 +775,8 @@ html, body {
 @media (max-width: 500px) {
   #top-bar, #add-top-bar { padding: 20px 18px 0; }
   #task-page { padding: 0 16px 80px; }
-  #task-card { padding: 30px 28px; }
-  #empty-card, #empty-done-msg { padding: 0 16px; }
+  .task-card { padding: 0 0 20px; }
+  
   #add-stage { padding: 20px 16px 90px; }
   #add-input { padding: 0 64px 0 28px; height: 70px; line-height: 70px; }
   #fab, #list-fab { bottom: 24px; right: 20px; width: 58px; height: 58px; font-size: 28px; }

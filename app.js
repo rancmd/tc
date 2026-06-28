@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────
-//  TASK CRUSHER — app.js  v8b
+//  TASK CRUSHER — app.js  v8c
 // ─────────────────────────────────────────────
 
 // ── STATE ──
@@ -49,6 +49,8 @@ function load() {
         .replace('1 hr','30 min')
       );
       t.tomorrow = false;
+      // Assign a color to any task that doesn't have one
+      if (!t.color) t.color = COLORS[Math.floor(Math.random() * COLORS.length)];
     });
   } catch(e) { tasks = []; currentIndex = 0; }
   if (currentIndex >= activeTasks().length) currentIndex = 0;
@@ -66,18 +68,48 @@ function uniqueColor() {
 }
 
 // ── RENDER ──
+
+// Build one full-screen slide-page element for a task
 function makeSlidePage(task) {
-  const div = document.createElement('div');
-  div.className = 'slide-page';
-  div.innerHTML = `
-    <div id="task-card">
-      <div id="task-color-dot" style="display:none"></div>
-      <div id="task-text">${esc(task.text)}</div>
-    </div>
-    <div id="quick-actions"></div>
-    <div id="subtask-list"></div>
-  `;
-  return div;
+  const page = document.createElement('div');
+  page.className = 'slide-page';
+  page.style.background = task.color || '#5c47f5';
+
+  const content = document.createElement('div');
+  content.className = 'slide-content';
+
+  // Task text
+  const cardDiv = document.createElement('div');
+  cardDiv.className = 'task-card';
+  const textDiv = document.createElement('div');
+  textDiv.className = 'task-text';
+  textDiv.textContent = task.text;
+  cardDiv.appendChild(textDiv);
+  content.appendChild(cardDiv);
+
+  // Quick actions
+  const qa = document.createElement('div');
+  qa.className = 'qa-actions';
+  content.appendChild(qa);
+
+  // Subtasks
+  const st = document.createElement('div');
+  st.className = 'subtask-list-inner';
+  content.appendChild(st);
+
+  page.appendChild(content);
+
+  // Populate actions/subtasks
+  renderQuickActionsInto(task, qa);
+  renderSubtasksInto(task, st);
+
+  // Click anywhere on the page = crush (but not on action pills)
+  page.addEventListener('click', (e) => {
+    if (e.target.closest('.qa-actions') || e.target.closest('.subtask-list-inner')) return;
+    crushTask();
+  });
+
+  return page;
 }
 
 function render() {
@@ -85,19 +117,7 @@ function render() {
   const done   = tasks.filter(t => t.done);
   const task   = currentTask();
 
-  // Update app background color
-  const appEl = document.getElementById('app');
-  if (task) {
-    appEl.style.setProperty('--task-color', task.color || 'var(--accent)');
-    // Also set background directly for instant switch
-    appEl.style.background = task.color || 'var(--accent)';
-  } else if (done.length > 0) {
-    appEl.style.background = '#16a34a';
-  } else {
-    appEl.style.background = '#5c47f5';
-  }
-
-  // Top-right nav counter
+  // Nav counter
   const navCount = document.getElementById('task-nav-count');
   if (active.length > 0) {
     navCount.textContent = (currentIndex + 1) + ' / ' + active.length;
@@ -110,22 +130,21 @@ function render() {
   const slot      = document.getElementById('slide-slot');
   const emptyCard = document.getElementById('empty-card');
   const emptyDone = document.getElementById('empty-done-msg');
+  const appEl     = document.getElementById('app');
 
   if (task) {
     emptyCard.style.display = 'none';
     emptyDone.style.display = 'none';
+    appEl.style.background  = task.color || '#5c47f5';
 
-    // Build the slide page directly in the slot (no animation on initial render)
+    // Replace slot content with a fresh page (no animation)
+    slot.style.transform  = '';
+    slot.style.transition = '';
     slot.innerHTML = '';
-    const page = makeSlidePage(task);
-    slot.appendChild(page);
-
-    // Render actions + subtasks into the new page
-    renderQuickActionsInto(task, page.querySelector('#quick-actions'));
-    renderSubtasksInto(task, page.querySelector('#subtask-list'));
-
+    slot.appendChild(makeSlidePage(task));
   } else {
     slot.innerHTML = '';
+    appEl.style.background = done.length > 0 ? '#16a34a' : '#5c47f5';
     if (done.length > 0) {
       emptyCard.style.display = 'none';
       emptyDone.style.display = 'block';
@@ -137,8 +156,13 @@ function render() {
   }
 }
 
+
 // ══════════════════════════════════════════
-//  ELEVATOR NAV — two pages move together
+//  ELEVATOR NAV — true two-panel slide
+//  The #slide-slot holds the OUTGOING page.
+//  We create the INCOMING page, position it
+//  off-screen below/above, then transition
+//  both by moving the slot up/down.
 // ══════════════════════════════════════════
 let isAnimating = false;
 
@@ -159,51 +183,55 @@ function animateToTask(newIdx, dir) {
   const newTask = activeTasks()[newIdx];
   if (!newTask) { isAnimating = false; return; }
 
-  // Build incoming page (off-screen)
+  // Build new page and place it immediately below (dir>0) or above (dir<0)
   const newPage = makeSlidePage(newTask);
+  const offset  = dir > 0 ? '100%' : '-100%';
+  newPage.style.transform = `translateY(${offset})`;
   slot.appendChild(newPage);
-  renderQuickActionsInto(newTask, newPage.querySelector('#quick-actions'));
-  renderSubtasksInto(newTask, newPage.querySelector('#subtask-list'));
 
-  // Update state + background immediately (background crossfades via CSS transition)
+  // Update state
   currentIndex = newIdx;
   save();
-  const appEl = document.getElementById('app');
-  appEl.style.background = newTask.color || 'var(--accent)';
 
   // Update nav counter
   const active2 = activeTasks();
-  document.getElementById('task-nav-count').textContent = (currentIndex + 1) + ' / ' + active2.length;
+  document.getElementById('task-nav-count').textContent =
+    (currentIndex + 1) + ' / ' + active2.length;
 
-  // Kick off animations simultaneously
-  if (oldPage) {
-    oldPage.classList.add(dir > 0 ? 'slide-out-up' : 'slide-out-down');
-  }
-  newPage.classList.add(dir > 0 ? 'slide-in-from-bottom' : 'slide-in-from-top');
+  // Update app bg to new task color immediately
+  document.getElementById('app').style.background = newTask.color || '#5c47f5';
 
-  const DURATION = 380;
+  // Force reflow so initial position is painted before transition starts
+  void slot.offsetHeight;
+
+  // Animate: move slot so old goes off, new comes in
+  // Both pages share the same slot translateY
+  const slotShift = dir > 0 ? '-100%' : '100%';
+  slot.style.transition = 'transform 0.42s cubic-bezier(0.4, 0, 0.2, 1)';
+  slot.style.transform  = `translateY(${slotShift})`;
+
   setTimeout(() => {
+    // Snap: remove old page, reset slot position, reposition new page
     if (oldPage) oldPage.remove();
-    newPage.classList.remove('slide-in-from-bottom', 'slide-in-from-top');
+    slot.style.transition = 'none';
+    slot.style.transform  = '';
+    newPage.style.transform = '';
     isAnimating = false;
-  }, DURATION);
+  }, 430);
 }
 
-// ── TOUCH SWIPE — whole screen is the swipe zone ──
+// ── TOUCH SWIPE — drag slot directly ──
 (function() {
   let startY = 0, startX = 0, startTime = 0;
   let dragging = false, deltaY = 0;
 
-  function currentPage() {
-    return document.querySelector('#slide-slot .slide-page');
-  }
-
   function blocked(t) {
-    return t.closest('#quick-actions') || t.closest('#subtask-list') || t.closest('#fab')
-        || t.closest('#list-overlay') && !document.getElementById('list-overlay').classList.contains('hidden')
-        || t.closest('#add-screen') && !document.getElementById('add-screen').classList.contains('hidden')
-        || t.closest('#split-modal') && !document.getElementById('split-modal').classList.contains('hidden')
-        || t.closest('#delete-modal') && !document.getElementById('delete-modal').classList.contains('hidden');
+    return t.closest('.qa-actions') || t.closest('.subtask-list-inner')
+        || t.closest('#fab')
+        || (!document.getElementById('list-overlay').classList.contains('hidden'))
+        || (!document.getElementById('add-screen').classList.contains('hidden'))
+        || (!document.getElementById('split-modal').classList.contains('hidden'))
+        || (!document.getElementById('delete-modal').classList.contains('hidden'));
   }
 
   document.addEventListener('touchstart', e => {
@@ -213,6 +241,8 @@ function animateToTask(newIdx, dir) {
     startTime = Date.now();
     dragging  = false;
     deltaY    = 0;
+    const slot = document.getElementById('slide-slot');
+    slot.style.transition = 'none';
   }, { passive: true });
 
   document.addEventListener('touchmove', e => {
@@ -221,68 +251,67 @@ function animateToTask(newIdx, dir) {
     const dx = Math.abs(e.touches[0].clientX - startX);
     if (!dragging && Math.abs(dy) > 8 && Math.abs(dy) > dx * 1.2) dragging = true;
     if (!dragging) return;
+    if (activeTasks().length < 2 || isAnimating) return;
 
     deltaY = dy;
-    const p = currentPage();
-    if (!p || activeTasks().length < 2 || isAnimating) return;
-
-    p.style.transition = 'none';
-    p.style.transform  = `translateY(${dy}px)`;
+    const slot = document.getElementById('slide-slot');
+    slot.style.transform = `translateY(${dy}px)`;
   }, { passive: true });
 
   document.addEventListener('touchend', () => {
     if (!dragging) return;
     dragging = false;
 
-    const p       = currentPage();
-    const active  = activeTasks();
     const dy      = deltaY;
     const elapsed = Date.now() - startTime;
-    const isFlick = elapsed < 280 && Math.abs(dy) > 35;
-    const isSlide = Math.abs(dy) > 80;
+    const isFlick = elapsed < 300 && Math.abs(dy) > 40;
+    const isSlide = Math.abs(dy) > 90;
+    const slot    = document.getElementById('slide-slot');
 
-    if (p && !(isFlick || isSlide)) {
-      p.style.transition = 'transform 0.28s cubic-bezier(0.4,0,0.2,1)';
-      p.style.transform  = '';
-    } else if (p) {
-      p.style.transform = '';
-      p.style.transition = '';
-    }
-
-    if ((isFlick || isSlide) && active.length > 1 && !isAnimating) {
+    if ((isFlick || isSlide) && activeTasks().length > 1 && !isAnimating) {
+      // Reset slot first, then animate
+      slot.style.transition = 'none';
+      slot.style.transform  = '';
       navTask(dy < 0 ? 1 : -1);
+    } else {
+      // Snap back
+      slot.style.transition = 'transform 0.28s cubic-bezier(0.4,0,0.2,1)';
+      slot.style.transform  = '';
     }
     deltaY = 0;
   }, { passive: true });
 
   document.addEventListener('touchcancel', () => {
     dragging = false; deltaY = 0;
-    const p = currentPage();
-    if (p) { p.style.transition = ''; p.style.transform = ''; }
+    const slot = document.getElementById('slide-slot');
+    slot.style.transition = 'transform 0.28s cubic-bezier(0.4,0,0.2,1)';
+    slot.style.transform  = '';
   }, { passive: true });
 })();
 
-// ── MOUSE WHEEL — desktop gallery scroll ──
+// ── MOUSE WHEEL — desktop scroll anywhere ──
 (function() {
   let wheelCooldown = false;
-
-  document.getElementById('stage').addEventListener('wheel', e => {
+  document.addEventListener('wheel', e => {
     if (!document.getElementById('list-overlay').classList.contains('hidden')) return;
     if (!document.getElementById('add-screen').classList.contains('hidden')) return;
     if (!document.getElementById('split-modal').classList.contains('hidden')) return;
-    if (e.target.closest('#subtask-list')) return;
+    if (!document.getElementById('delete-modal').classList.contains('hidden')) return;
+    if (e.target.closest('.subtask-list-inner')) return;
     if (wheelCooldown || isAnimating) return;
     if (activeTasks().length < 2) return;
-
     navTask(e.deltaY > 0 ? 1 : -1);
     wheelCooldown = true;
-    setTimeout(() => { wheelCooldown = false; }, 420);
+    setTimeout(() => { wheelCooldown = false; }, 460);
   }, { passive: true });
 })();
 
+
 // ── QUICK ACTIONS ──
 function renderQuickActions(task) {
-  const el = document.getElementById('quick-actions');
+  const page = document.querySelector('#slide-slot .slide-page');
+  if (!page) return;
+  const el = page.querySelector('.qa-actions');
   if (el) renderQuickActionsInto(task, el);
 }
 function renderQuickActionsInto(task, el) {
@@ -295,7 +324,7 @@ function renderQuickActionsInto(task, el) {
   el.innerHTML = `
     <div class="qa-dropdown" id="dd-time">
       <button class="qa-pill ${timeTag ? 'active' : ''}" onclick="toggleDropdown('dd-time')" title="${timeTag || 'Set time'}">
-        \u{1F550}${timeTag ? '<span class="pill-label">' + timeTag + '</span>' : ''}
+        🕐${timeTag ? '<span class="pill-label">' + timeTag + '</span>' : ''}
       </button>
       <div class="qa-dropdown-menu" id="dd-time-menu">
         <button class="qa-menu-item ${timeTag==='5 min'?'selected':''}"  onclick="setTime('5 min')">5 min</button>
@@ -306,7 +335,7 @@ function renderQuickActionsInto(task, el) {
     </div>
     <div class="qa-dropdown" id="dd-prio">
       <button class="qa-pill ${prioTag ? 'active' : ''}" onclick="toggleDropdown('dd-prio')" title="${prioTag || 'Set priority'}">
-        \u{1F525}${prioTag ? '<span class="pill-label">' + prioTag + '</span>' : ''}
+        🔥${prioTag ? '<span class="pill-label">' + prioTag + '</span>' : ''}
       </button>
       <div class="qa-dropdown-menu" id="dd-prio-menu">
         <button class="qa-menu-item ${prioTag==='Urgent'?'selected':''}" onclick="setPrio('Urgent')">Urgent</button>
@@ -315,13 +344,15 @@ function renderQuickActionsInto(task, el) {
         ${prioTag ? '<div class="qa-menu-sep"></div><button class="qa-menu-item" onclick="clearPrio()">Clear</button>' : ''}
       </div>
     </div>
-    <button class="qa-pill" onclick="openSplitModal()" title="Split task">&#x2702;&#xFE0F;</button>
-    <button class="qa-pill danger" onclick="openDeleteModal()" title="Delete task">&#x1F5D1;&#xFE0F;</button>
+    <button class="qa-pill" onclick="openSplitModal()" title="Split task">✂️</button>
+    <button class="qa-pill danger" onclick="openDeleteModal()" title="Delete task">🗑️</button>
   `;
 }
 
 function renderSubtasks(task) {
-  const el = document.getElementById('subtask-list');
+  const page = document.querySelector('#slide-slot .slide-page');
+  if (!page) return;
+  const el = page.querySelector('.subtask-list-inner');
   if (el) renderSubtasksInto(task, el);
 }
 function renderSubtasksInto(task, el) {
@@ -329,20 +360,21 @@ function renderSubtasksInto(task, el) {
   if (!task.subtasks || task.subtasks.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = task.subtasks.map((st, i) => `
     <div class="subtask-card ${st.done ? 'done' : ''}" onclick="crushSubtask(${i})">
-      <div class="subtask-dot" style="background:${task.color || 'var(--accent)'}"></div>
+      <div class="subtask-dot" style="background:${task.color || '#5c47f5'}"></div>
       <span class="subtask-text-label">${esc(st.text)}</span>
-      <div class="subtask-crush-hint">\u{1F44A} Crush it!</div>
-      <button class="subtask-del" onclick="event.stopPropagation();deleteSubtask(${i})" title="Delete step">\u2715</button>
+      <div class="subtask-crush-hint">✊ Crush it!</div>
+      <button class="subtask-del" onclick="event.stopPropagation();deleteSubtask(${i})" title="Delete step">✕</button>
     </div>
   `).join('');
 }
 
 // ── CRUSH ──
-// Clicking anywhere on stage (except pills/subtasks) crushes the task
+// Click is handled per-slide-page in makeSlidePage
+// handleStageClick kept for onclick= in HTML (empty-state area)
 function handleStageClick(e) {
-  if (e.target.closest('#quick-actions') || e.target.closest('#subtask-list')) return;
+  // Only handle if clicking outside slide-slot (e.g., empty state)
+  if (e.target.closest('#slide-slot')) return;
   if (e.target.closest('#empty-card') || e.target.closest('#empty-done-msg')) return;
-  crushTask();
 }
 
 // ── CRUSH ──
@@ -350,8 +382,9 @@ function handleCardClick() { crushTask(); }
 
 function crushTask() {
   const task = currentTask(); if (!task) return;
-  const page = document.getElementById('task-page');
-  page.style.pointerEvents = 'none';
+  // Disable clicks on current slide page during animation
+  const activePage = document.querySelector('#slide-slot .slide-page');
+  if (activePage) activePage.style.pointerEvents = 'none';
 
   task.done = true;
   const remaining = activeTasks();
@@ -359,8 +392,7 @@ function crushTask() {
   save();
   playConfetti();
   showCrushFlash();
-  // Longer animation — render after flash fades (1.4s total)
-  setTimeout(() => { page.style.pointerEvents = ''; render(); }, 1400);
+  setTimeout(() => { render(); }, 1400);
 }
 
 function openAllDoneModal() {
@@ -530,7 +562,8 @@ function submitTask() {
   const tags = [];
   if (addTimeTag) tags.push(addTimeTag);
   if (addPrioTag) tags.push(addPrioTag);
-  tasks.push({ id: Date.now(), text, tags, done: false, subtasks: [], color: null, created: Date.now() });
+  const newColor = COLORS.filter(c => !tasks.map(t=>t.color).includes(c))[0] || COLORS[Math.floor(Math.random()*COLORS.length)];
+  tasks.push({ id: Date.now(), text, tags, done: false, subtasks: [], color: newColor, created: Date.now() });
   if (activeTasks().length === 1) currentIndex = 0;
   save(); closeAddScreen(); render();
 }
